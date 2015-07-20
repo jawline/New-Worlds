@@ -1,0 +1,11 @@
+[root]
+name = "zone"
+version = "0.1.0"
+dependencies = [
+ "nwshared 0.1.0",
+]
+
+[[package]]
+name = "nwshared"
+version = "0.1.0"
+
