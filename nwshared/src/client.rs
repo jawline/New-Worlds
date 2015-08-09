@@ -12,16 +12,21 @@ impl <T: Read + Write> Client<T> {
 
 	pub fn read_string(&mut self) -> String {
 		let mut read = String::new();
-		let mut buf = [0u8; 512];
+		let mut buf = [0u8; 256];
 
 		while let Ok(len) = self.socket.read(&mut buf) {
-    		read = read + from_utf8(&buf).unwrap();
-    		if buf.iter().take(len).find(|&x| *x == b'\n').is_some() {
-    			break;
-    		}
+			match buf.iter().take(len).position(|&x| x == b'\n') {
+				Some(pos) => {
+					read = read + from_utf8(&buf[0..pos]).unwrap();
+					break;
+				}
+				_ => {
+					read = read + from_utf8(&buf).unwrap();
+				}
+			}
     	}
 
-    	read
+    	read.trim().to_string()
 	}
 
 	pub fn write_string(&mut self, data: &str) {

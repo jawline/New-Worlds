@@ -21,9 +21,8 @@ fn user_server() {
 	    	client.write_string("Welcome, Please enter your name\n");
 	    	client.write_string("Name: ");
 	    	
-	    	let mut user = user::User {
-	    		name: client.read_string()
-	    	};
+	    	let mut user = user::User::load(client.read_string());
+	    	client.write_string("Logging In\n");
 	    	
 	    	user::user_thread(&mut user, &mut client);
 	    });
