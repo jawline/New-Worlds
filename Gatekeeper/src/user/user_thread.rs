@@ -18,10 +18,14 @@ pub fn user_thread<T: Read + Write>(user: &mut User, client: &mut Client<T>) {
 				client.write_string("What do you want to say?");
 			},
 			"world" => {
-				client.write_string("You are in a nameless void\n");
+				client.write_string(&format!("You inhabit {}, {}\n", user.map.name, user.map.desc));
 			},
+			"who am i" => {
+				client.write_string(&format!("You are {}\n", user.name));
+			}
 			"zone" => {
-				client.write_string("You are in an empty universe, with nothing streching off in all directions\n");
+				let zone = user.map.zones.iter().find(|&x| x.id == 0).unwrap();
+				client.write_string(&format!("You are in {}, {}\n", zone.name, zone.desc));
 			},
 			_ => {
 				client.write_string(&format!("Error, unhandled command {}\n", command));
