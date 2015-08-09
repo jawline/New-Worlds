@@ -124,9 +124,6 @@ impl Server {
         })
     }
 
-    /// Register Server with the event loop.
-    ///
-    /// This keeps the registration details neatly tucked away inside of our implementation.
     fn reregister(&mut self, event_loop: &mut EventLoop<Server>) {
         event_loop.reregister(
             &self.sock,
@@ -146,7 +143,6 @@ impl Server {
 
         // Queue up a write for all connected clients.
         for conn in self.conns.iter_mut() {
-            // TODO: use references so we don't have to clone
             let conn_send_buf = ByteBuf::from_slice(buffer);
             conn.send_message(conn_send_buf)
                 .and_then(|_| conn.reregister(event_loop))
@@ -262,19 +258,14 @@ impl Connection {
         Connection {
             sock: sock,
             token: token,
-
-            // new connections are only listening for a hang up event when
-            // they are first created. we always want to make sure we are 
-            // listening for the hang up event. we will additionally listen
-            // for readable and writable events later on.
             interest: EventSet::hup(),
-
             send_queue: Vec::new(),
         }
     }
 
     fn readable(&mut self) -> io::Result<ByteBuf> {
         let mut recv_buf = ByteBuf::mut_with_capacity(2048);
+        
         loop {
             match self.sock.try_read_buf(&mut recv_buf) {
                 Ok(None) => {
@@ -298,14 +289,7 @@ impl Connection {
         Ok(recv_buf.flip())
     }
 
-    /// Handle a writable event from the event loop.
-    ///
-    /// Send one message from the send queue to the client. If the queue is empty, remove interest
-    /// in write events.
-    /// TODO: Figure out if sending more than one message is optimal. Maybe we should be trying to
-    /// flush until the kernel sends back EAGAIN?
     fn writable(&mut self) -> io::Result<()> {
-
         try!(self.send_queue.pop()
             .ok_or(Error::new(ErrorKind::Other, "Could not pop send queue"))
             .and_then(|mut buf| {
@@ -336,23 +320,14 @@ impl Connection {
         Ok(())
     }
 
-    /// Queue an outgoing message to the client.
-    ///
-    /// This will cause the connection to register interests in write events with the event loop.
-    /// The connection can still safely have an interest in read events. The read and write buffers
-    /// operate independently of each other.
     fn send_message(&mut self, message: ByteBuf) -> io::Result<()> {
         self.send_queue.push(message);
         self.interest.insert(EventSet::writable());
         Ok(())
     }
 
-    /// Register interest in read events with the event_loop.
-    ///
-    /// This will let our connection accept reads starting next event loop tick.
     fn register(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         self.interest.insert(EventSet::readable());
-
         event_loop.register_opt(
             &self.sock,
             self.token,
@@ -364,7 +339,6 @@ impl Connection {
         })
     }
 
-    /// Re-register interest in read events with the event_loop.
     fn reregister(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         event_loop.reregister(
             &self.sock,
