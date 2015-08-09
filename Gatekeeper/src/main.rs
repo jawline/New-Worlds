@@ -20,21 +20,14 @@ use mio::util::Slab;
 
 fn main() {
 
-    // Before doing anything, let us register a logger. The mio library has really good logging
-    // at the _trace_ and _debug_ levels. Having a logger setup is invaluable when trying to
-    // figure out why something is not working correctly.
     env_logger::init().ok().expect("Failed to init logger");
 
-    let addr: SocketAddr = FromStr::from_str("127.0.0.1:8000")
+    let addr: SocketAddr = FromStr::from_str("127.0.0.1:15340")
         .ok().expect("Failed to parse host:port string");
     let sock = TcpListener::bind(&addr).ok().expect("Failed to bind address");
 
     let mut event_loop = EventLoop::new().ok().expect("Failed to create event loop");
 
-    // Create our Server object and register that with the event loop. I am hiding away
-    // the details of how registering works inside of the `Server#register` function. One reason I
-    // really like this is to get around having to have `const SERVER = Token(0)` at the top of my
-    // file. It also keeps our polling options inside `Server`.
     let mut server = Server::new(sock);
     server.register(&mut event_loop).ok().expect("Failed to register server with event loop");
 
@@ -51,8 +44,7 @@ struct Server {
     token: Token,
     
     // a list of connections _accepted_ by our server
-    conns: Slab<Connection>,
-
+    conns: Slab<Connection>
 }
 
 impl Handler for Server {
@@ -112,16 +104,8 @@ impl Server {
     fn new(sock: TcpListener) -> Server {
         Server {
             sock: sock,
-
-            // I don't use Token(0) because kqueue will send stuff to Token(0)
-            // by default causing really strange behavior. This way, if I see
-            // something as Token(0), I know there are kqueue shenanigans
-            // going on.
             token: Token(1),
-
-            // SERVER is Token(1), so start after that
-            // we can deal with a max of 126 connections
-            conns: Slab::new_starting_at(Token(2), 128)
+            conns: Slab::new_starting_at(Token(2), 2048)
         }
     }
 
@@ -206,14 +190,8 @@ impl Server {
             }
         };
 
-        // `Slab#insert_with` is a wrapper around `Slab#insert`. I like `#insert_with` because I
-        // make the `Token` required for creating a new connection.
-        //
-        // `Slab#insert` returns the index where the connection was inserted. Remember that in mio,
-        // the Slab is actually defined as `pub type Slab<T> = ::slab::Slab<T, ::Token>;`. Token is
-        // just a tuple struct around `usize` and Token implemented `::slab::Index` trait. So,
-        // every insert into the connection slab will return a new token needed to register with
-        // the event loop. Fancy...
+        self.send_all(format!("New user has joined the server\n").as_bytes(), event_loop);
+
         match self.conns.insert_with(|token| {
             debug!("registering {:?} with event loop", token);
             Connection::new(sock, token)
@@ -229,15 +207,12 @@ impl Server {
                 }
             },
             None => {
-                // If we fail to insert, `conn` will go out of scope and be dropped.
                 error!("Failed to insert connection into slab");
             }
         };
 
         // We are using edge-triggered polling. Even our SERVER token needs to reregister.
         self.reregister(event_loop);
-
-        self.send_all(format!("New user has joined the server\n").as_bytes(), event_loop);
     }
 
     fn readable(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
