@@ -83,10 +83,9 @@ impl Connection {
         Ok(())
     }
 
-    pub fn send_message(&mut self, message: ByteBuf) -> io::Result<()> {
+    pub fn send_message(&mut self, message: ByteBuf) {
         self.send_queue.push(message);
         self.interest.insert(EventSet::writable());
-        Ok(())
     }
 
     pub fn register(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {

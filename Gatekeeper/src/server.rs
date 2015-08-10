@@ -4,6 +4,7 @@ use map::Map;
 
 use std::io;
 use std::sync::Arc;
+use std::str::from_utf8;
 
 use mio::*;
 use mio::buf::ByteBuf;
@@ -106,12 +107,8 @@ impl Server {
 
         for conn in self.conns.iter_mut() {
             let conn_send_buf = ByteBuf::from_slice(buffer);
-            conn.send_message(conn_send_buf)
-                .and_then(|_| conn.reregister(event_loop))
-                .unwrap_or_else(|e| {
-                    error!("Failed to queue message for {:?}: {:?}", conn.token, e);
-                    bad_connections.push(conn.token)
-                });
+            conn.send_message(conn_send_buf);
+            conn.reregister(event_loop);
         }
 
         for token in bad_connections {
@@ -122,8 +119,6 @@ impl Server {
     fn accept(&mut self, event_loop: &mut EventLoop<Server>) {
         debug!("server accepting new socket");
 
-        // Log an error if there is no socket, but otherwise move on so we do not tear down the
-        // entire server.
         let sock = match self.sock.accept() {
             Ok(s) => {
                 match s {
@@ -167,17 +162,28 @@ impl Server {
 
     fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         debug!("server conn readable; token={:?}", token);
-        let map = self.map.clone();
-        
+
         let message = try!(self.find_connection_by_token(token).readable());
 
         if message.remaining() == message.capacity() {
             return Ok(());
         }
 
-        self.send_all(message.bytes(), event_loop);
+        if let Ok(as_string) = from_utf8(message.bytes()) {
+            if as_string.starts_with("say ") {
+                self.send_all(message.bytes(), event_loop);
+            } else {
+                self.send_token_message(token, ByteBuf::from_slice(b"Error, unknown command\n"));
+            }
+        } else {
+            self.reset_connection(event_loop, token);
+        }
 
         Ok(())
+    }
+
+    fn send_token_message(&mut self, token: Token, buffer: ByteBuf) {
+        self.find_connection_by_token(token).send_message(buffer);
     }
 
     fn reset_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
