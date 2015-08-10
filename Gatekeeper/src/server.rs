@@ -42,7 +42,7 @@ impl Handler for Server {
         if events.is_writable() {
             trace!("Write event for {:?}", token);
             assert!(self.token != token, "Received writable event for Server");
-            self.find_connection_by_token(token).writable()
+            self.find_connection_by_token(token).write_one()
                 .and_then(|_| self.find_connection_by_token(token).reregister(event_loop))
                 .unwrap_or_else(|e| {
                     warn!("Write event failed for {:?}, {:?}", token, e);
@@ -108,7 +108,9 @@ impl Server {
         for conn in self.conns.iter_mut() {
             let conn_send_buf = ByteBuf::from_slice(buffer);
             conn.send_message(conn_send_buf);
-            conn.reregister(event_loop);
+            if conn.reregister(event_loop).is_err() {
+                bad_connections.push(conn.token);
+            }
         }
 
         for token in bad_connections {
@@ -191,7 +193,22 @@ impl Server {
             debug!("Server connection reset; shutting down");
             event_loop.shutdown();
         } else {
+
             debug!("reset connection; token={:?}", token);
+
+            //Send any queued items before shutting down
+            if self.find_connection_by_token(token).write_remaining().is_err() {
+                debug!("could not write remaining to client before a reset");
+            }
+
+            if self.find_connection_by_token(token).shutdown().is_err() {
+                error!("could not shutdown TcpStream before a reset");
+            }
+
+            if self.find_connection_by_token(token).deregister(event_loop).is_err() {
+                error!("could not deregister token before shutdown");
+            }
+
             self.conns.remove(token);
         }
     }

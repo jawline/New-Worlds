@@ -2,11 +2,8 @@ use mio::*;
 use mio::buf::ByteBuf;
 use mio::tcp::*;
 
-use map::Map;
-
 use std::io;
 use std::io::{Error, ErrorKind};
-use std::sync::Arc;
 
 use server::Server;
 
@@ -52,15 +49,13 @@ impl Connection {
         Ok(recv_buf.flip())
     }
 
-    pub fn writable(&mut self) -> io::Result<()> {
+    pub fn write_one(&mut self) -> io::Result<()> {
         try!(self.send_queue.pop()
             .ok_or(Error::new(ErrorKind::Other, "Could not pop send queue"))
             .and_then(|mut buf| {
                 match self.sock.try_write_buf(&mut buf) {
                     Ok(None) => {
                         debug!("client flushing buf; WouldBlock");
-
-                        // put message back into the queue so we can try again
                         self.send_queue.push(buf);
                         Ok(())
                     },
@@ -81,6 +76,19 @@ impl Connection {
         }
 
         Ok(())
+    }
+
+    pub fn write_remaining(&mut self) -> io::Result<()> {
+        while self.interest.is_writable() {
+            if let Err(msg) = self.write_one() {
+                return Err(msg);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn shutdown(&mut self) -> io::Result<()> {
+        self.sock.shutdown(Shutdown::Both)
     }
 
     pub fn send_message(&mut self, message: ByteBuf) {
@@ -111,5 +119,9 @@ impl Connection {
             error!("Failed to reregister {:?}, {:?}", self.token, e);
             Err(e)
         })
+    }
+
+    pub fn deregister(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        event_loop.deregister(&self.sock)
     }
 }
