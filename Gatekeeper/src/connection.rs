@@ -2,8 +2,11 @@ use mio::*;
 use mio::buf::ByteBuf;
 use mio::tcp::*;
 
+use map::Map;
+
 use std::io;
 use std::io::{Error, ErrorKind};
+use std::sync::Arc;
 
 use server::Server;
 
@@ -91,7 +94,7 @@ impl Connection {
         event_loop.register_opt(
             &self.sock,
             self.token,
-            self.interest, 
+            self.interest,
             PollOpt::edge() | PollOpt::oneshot()
         ).or_else(|e| {
             error!("Failed to reregister {:?}, {:?}", self.token, e);
