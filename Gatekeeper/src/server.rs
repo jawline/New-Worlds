@@ -170,9 +170,19 @@ impl Server {
         }
 
         match from_utf8(message.bytes()) {
-            Ok(as_string) => {
+            Ok(base_string) => {
+                let as_string = base_string.trim();
                 if as_string.starts_with("say ") {
-                    self.send_all(message.bytes(), event_loop);
+                    if as_string.len() > 4 {
+                        let name = self.find_connection_by_token(token).name.clone();
+                        self.send_all((name + ": " + &as_string[4..]).as_bytes(), event_loop);
+                    }
+                } else if as_string.starts_with("set name ") {
+                    if as_string.len() > 9 {
+                        let name_before = self.find_connection_by_token(token).name.clone();
+                        self.find_connection_by_token(token).name = as_string[9..].to_string();
+                        self.send_all(("User ".to_string() + &name_before + " set name to " + &as_string[9..] + "\n").as_bytes(), event_loop);
+                    }
                 } else {
                     self.send_token_message(token, ByteBuf::from_slice(b"Error, unknown command\n"));
                 }

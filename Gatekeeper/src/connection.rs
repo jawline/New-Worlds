@@ -11,6 +11,7 @@ use std::sync::Arc;
 use server::Server;
 
 pub struct Connection {
+    pub name: String,
     sock: TcpStream,
     pub token: Token,
     interest: EventSet,
@@ -20,6 +21,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(sock: TcpStream, token: Token) -> Connection {
         Connection {
+            name: "Anon".to_string(),
             sock: sock,
             token: token,
             interest: EventSet::hup(),
