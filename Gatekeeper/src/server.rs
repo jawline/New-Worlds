@@ -119,7 +119,7 @@ impl Server {
     }
 
     fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
-        let name = self.find_connection_by_token(token).name.clone();
+        let name = self.find_connection_by_token(token).user.name.clone();
         self.send_all(format!("{} has joined the server\n", name).as_bytes(), event_loop);
     }
 
@@ -144,9 +144,11 @@ impl Server {
             }
         };
 
+        let server_map = self.map.clone();
+
         match self.conns.insert_with(|token| {
             debug!("registering {:?} with event loop", token);
-            Connection::new(sock, token)
+            Connection::new(sock, token, server_map.clone())
         }) {
             Some(token) => {
                 match self.find_connection_by_token(token).register(event_loop) {
@@ -181,13 +183,13 @@ impl Server {
                 let as_string = base_string.trim();
                 if as_string.starts_with("say ") {
                     if as_string.len() > 4 {
-                        let name = self.find_connection_by_token(token).name.clone();
+                        let name = self.find_connection_by_token(token).user.name.clone();
                         self.send_all((name + ": " + &as_string[4..] + "\n").as_bytes(), event_loop);
                     }
                 } else if as_string.starts_with("set name ") {
                     if as_string.len() > 9 {
-                        let name_before = self.find_connection_by_token(token).name.clone();
-                        self.find_connection_by_token(token).name = as_string[9..].to_string();
+                        let name_before = self.find_connection_by_token(token).user.name.clone();
+                        self.find_connection_by_token(token).user.name = as_string[9..].to_string();
                         self.send_all(("User ".to_string() + &name_before + " set name to " + &as_string[9..] + "\n").as_bytes(), event_loop);
                     }
                 } else {

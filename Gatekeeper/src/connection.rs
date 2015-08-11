@@ -2,13 +2,19 @@ use mio::*;
 use mio::buf::ByteBuf;
 use mio::tcp::*;
 
+use std::sync::Arc;
+
 use std::io;
 use std::io::{Error, ErrorKind};
 
+use user::User;
+
 use server::Server;
 
+use map::Map;
+
 pub struct Connection {
-    pub name: String,
+    pub user: User,
     sock: TcpStream,
     pub token: Token,
     interest: EventSet,
@@ -16,9 +22,9 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(sock: TcpStream, token: Token) -> Connection {
+    pub fn new(sock: TcpStream, token: Token, map: Arc<Map>) -> Connection {
         Connection {
-            name: "Anon".to_string(),
+            user: User::load("Anon", map.clone()),
             sock: sock,
             token: token,
             interest: EventSet::hup(),
@@ -121,9 +127,5 @@ impl Connection {
             error!("Failed to reregister {:?}, {:?}", self.token, e);
             Err(e)
         })
-    }
-
-    pub fn deregister(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        event_loop.deregister(&self.sock)
     }
 }

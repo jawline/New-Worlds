@@ -8,9 +8,9 @@ pub struct User {
 }
 
 impl User {
-	pub fn load(user_name: String, map: Arc<Map>) -> User {
+	pub fn load(user_name: &str, map: Arc<Map>) -> User {
 		User {
-			name: user_name,
+			name: user_name.to_string(),
 			current_zone: map.start_zone,
 			map: map
 		}
