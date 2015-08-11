@@ -118,6 +118,11 @@ impl Server {
         }
     }
 
+    fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
+        let name = self.find_connection_by_token(token).name.clone();
+        self.send_all(format!("{} has joined the server\n", name).as_bytes(), event_loop);
+    }
+
     fn accept(&mut self, event_loop: &mut EventLoop<Server>) {
         debug!("server accepting new socket");
 
@@ -139,15 +144,15 @@ impl Server {
             }
         };
 
-        self.send_all(format!("New user has joined the server\n").as_bytes(), event_loop);
-
         match self.conns.insert_with(|token| {
             debug!("registering {:?} with event loop", token);
             Connection::new(sock, token)
         }) {
             Some(token) => {
                 match self.find_connection_by_token(token).register(event_loop) {
-                    Ok(_) => {},
+                    Ok(_) => {
+                        self.new_connection_accepted(event_loop, token);
+                    },
                     Err(e) => {
                         error!("Failed to register {:?} connection with event loop, {:?}", token, e);
                         self.conns.remove(token);
@@ -177,7 +182,7 @@ impl Server {
                 if as_string.starts_with("say ") {
                     if as_string.len() > 4 {
                         let name = self.find_connection_by_token(token).name.clone();
-                        self.send_all((name + ": " + &as_string[4..]).as_bytes(), event_loop);
+                        self.send_all((name + ": " + &as_string[4..] + "\n").as_bytes(), event_loop);
                     }
                 } else if as_string.starts_with("set name ") {
                     if as_string.len() > 9 {
@@ -213,10 +218,6 @@ impl Server {
 
             if self.find_connection_by_token(token).shutdown().is_err() {
                 error!("could not shutdown TcpStream before a reset");
-            }
-
-            if self.find_connection_by_token(token).deregister(event_loop).is_err() {
-                error!("could not deregister token before shutdown");
             }
 
             self.conns.remove(token);
