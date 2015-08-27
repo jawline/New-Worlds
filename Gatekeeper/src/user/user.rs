@@ -15,4 +15,8 @@ impl User {
 			map: map
 		}
 	}
+
+	pub fn current_zone(&self) -> String {
+		self.map.zones[self.current_zone].name.clone()
+	}
 }

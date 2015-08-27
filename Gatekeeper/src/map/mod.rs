@@ -20,4 +20,8 @@ impl Map {
 	pub fn add_zone(&mut self, zone: Zone) {
 		self.zones.push(zone);
 	}
+
+	pub fn valid_zone_id(&self, zone_id: usize) -> bool {
+		zone_id < self.zones.len()
+	}
 }
