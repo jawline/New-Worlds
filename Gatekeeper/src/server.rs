@@ -171,6 +171,14 @@ impl Server {
         self.reregister(event_loop);
     }
 
+    fn send_message(&mut self, token: Token, message: &str) {
+        self.send_token_message(token, ByteBuf::from_slice(message.as_bytes()))
+    }
+
+    fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) {
+        self.send_all(message.as_bytes(), event_loop);
+    }
+
     fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         debug!("server conn readable; token={:?}", token);
 
@@ -186,14 +194,14 @@ impl Server {
 
                 if as_string.starts_with("say ") {
                     let name = self.find_connection_by_token(token).user.name.clone();
-                    self.send_all((name + ": " + &as_string[4..] + "\n").as_bytes(), event_loop);
+                    self.broadcast_message(&(name + ": " + &as_string[4..] + "\n"), event_loop);
                 } else if as_string.starts_with("set name ") {
                     let name_before = self.find_connection_by_token(token).user.name.clone();
                     self.find_connection_by_token(token).user.name = as_string[9..].to_string();
-                    self.send_all(("User ".to_string() + &name_before + " set name to " + &as_string[9..] + "\n").as_bytes(), event_loop);
+                    self.broadcast_message(&("User ".to_string() + &name_before + " set name to " + &as_string[9..] + "\n"), event_loop);
                 } else if as_string == "zone" {
                     let current_zone = self.find_connection_by_token(token).user.current_zone() + "\n";
-                    self.send_token_message(token, ByteBuf::from_slice(current_zone.as_bytes()));
+                    self.send_message(token, &("You are in ".to_string() + &current_zone));
                 } else if as_string.starts_with("teleport to id ") {
                     let data = &as_string[15..];
                     match usize::from_str(&data) {
@@ -203,13 +211,13 @@ impl Server {
                                 self.find_connection_by_token(token).user.current_zone = id;
                                 let name = self.find_connection_by_token(token).user.name.clone();
                                 let to_zone_name = self.find_connection_by_token(token).user.current_zone();
-                                self.send_all(("User ".to_string() + &name + " has teleported to zone " + &to_zone_name + "\n").as_bytes(), event_loop);
+                                self.broadcast_message(&("User ".to_string() + &name + " has teleported to zone " + &to_zone_name + "\n"), event_loop);
                             } else {
-                                self.send_token_message(token, ByteBuf::from_slice((id.to_string() + &" is not a valid zone ID\n").as_bytes()));
+                                self.send_message(token, &(id.to_string() + &" is not a valid zone ID\n"));
                             }
                         },
                         Err(_) => {
-                            self.send_all("Somebody was an idiot\n".as_bytes(), event_loop);
+                            self.broadcast_message("Somebody was an idiot\n", event_loop);
                         }
                     }
                 } else if as_string.starts_with("teleport to name ") {
