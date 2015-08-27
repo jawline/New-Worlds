@@ -20,7 +20,7 @@ use server::Server;
 
 fn main() {
 
-    let mut map = map::Map::new("The Infinate World", "An empty infinate expanse some think was used for testing");
+    let mut map = map::Map::new("The infinite World", "An empty infinite expanse some think was used for testing");
     map.add_zone(zone::Zone::load(0).unwrap());
 
     env_logger::init().ok().expect("Failed to init logger");

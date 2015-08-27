@@ -9,8 +9,8 @@ impl Zone {
 		match id {
 			0 => Some(Zone{
 				id: id,
-				name: "The Infinate Room".to_string(),
-				desc: "An infinate room with nothing for infinity in all directions".to_string()
+				name: "The Infinite Room".to_string(),
+				desc: "An infinite room with nothing for infinity in all directions".to_string()
 			}),
 			_ => None
 		}

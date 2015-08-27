@@ -122,7 +122,14 @@ impl Server {
 
     fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
         let name = self.find_connection_by_token(token).user.name.clone();
-        self.send_all(format!("{} has joined the server\n", name).as_bytes(), event_loop);
+        self.send_welcome(token);
+        self.broadcast_message(&format!("{} has joined the server\n", name), event_loop);
+    }
+
+    fn send_welcome(&mut self, token: Token) {
+        let current_zone = &self.find_connection_by_token(token).user.current_zone();
+        let description = &self.find_connection_by_token(token).user.zone_description();
+        self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
     }
 
     fn accept(&mut self, event_loop: &mut EventLoop<Server>) {
