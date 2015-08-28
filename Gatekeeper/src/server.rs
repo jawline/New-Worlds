@@ -3,7 +3,6 @@ use connection::Connection;
 use map::Map;
 
 use std::io;
-use std::sync::Arc;
 use std::str::from_utf8;
 use std::str::FromStr;
 use std::usize;
@@ -18,7 +17,7 @@ pub struct Server {
     sock: TcpListener,
     token: Token,
     conns: Slab<Connection>,
-    map: Arc<Map>
+    map: Map
 }
 
 impl Handler for Server {
@@ -69,12 +68,30 @@ impl Handler for Server {
 }
 
 impl Server {
+
+    pub fn current_zone_id(&mut self, token: Token) -> usize {
+        self.find_connection_by_token(token).user.current_zone
+    }
+
+    pub fn current_zone(&mut self, token: Token) -> String {
+        let current_zone_id = self.current_zone_id(token);
+        self.map.zones[current_zone_id].name.clone()
+    }
+
+    pub fn zone_description(&mut self, token: Token) -> String {
+        let current_zone_id = self.current_zone_id(token);
+        self.map.zones[current_zone_id].desc.clone()
+    }
+}
+
+impl Server {
+
     pub fn new(sock: TcpListener, map: Map) -> Server {
         Server {
             sock: sock,
             token: Token(1),
             conns: Slab::new_starting_at(Token(2), 2048),
-            map: Arc::new(map)
+            map: map
         }
     }
 
@@ -127,8 +144,8 @@ impl Server {
     }
 
     fn send_welcome(&mut self, token: Token) {
-        let current_zone = &self.find_connection_by_token(token).user.current_zone();
-        let description = &self.find_connection_by_token(token).user.zone_description();
+        let current_zone = &self.current_zone(token);
+        let description = &self.zone_description(token);
         self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
     }
 
@@ -153,11 +170,11 @@ impl Server {
             }
         };
 
-        let server_map = self.map.clone();
+        let start_zone = self.map.start_zone;
 
         match self.conns.insert_with(|token| {
             debug!("registering {:?} with event loop", token);
-            Connection::new(sock, token, server_map.clone())
+            Connection::new(sock, token, start_zone)
         }) {
             Some(token) => {
                 match self.find_connection_by_token(token).register(event_loop) {
@@ -186,12 +203,16 @@ impl Server {
         self.send_all(message.as_bytes(), event_loop);
     }
 
+    fn user_name(&mut self, token: Token) -> String {
+        self.find_connection_by_token(token).user.name.clone()
+    }
+
     fn teleport_player_to_zone(&mut self, token: Token, zone_id: usize, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        let valid_zone = self.find_connection_by_token(token).user.map.valid_zone_id(zone_id);
+        let valid_zone = self.map.valid_zone_id(zone_id);
         if valid_zone {
             self.find_connection_by_token(token).user.current_zone = zone_id;
-            let name = self.find_connection_by_token(token).user.name.clone();
-            let to_zone_name = self.find_connection_by_token(token).user.current_zone();
+            let name = self.user_name(token);
+            let to_zone_name = self.current_zone(token);
             self.broadcast_message(&("User ".to_string() + &name + " has teleported to zone " + &to_zone_name + "\n"), event_loop);
         } else {
             self.send_message(token, &(zone_id.to_string() + &" is not a valid zone ID\n"));
@@ -201,16 +222,16 @@ impl Server {
 
     fn handle_message(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         if message.starts_with("say ") {
-            let name = self.find_connection_by_token(token).user.name.clone();
+            let name = self.user_name(token);
             self.broadcast_message(&(name + ": " + &message[4..] + "\n"), event_loop);
             Ok(())
         } else if message.starts_with("set name ") {
-            let name_before = self.find_connection_by_token(token).user.name.clone();
+            let name_before = self.user_name(token);
             self.find_connection_by_token(token).user.name = message[9..].to_string();
             self.broadcast_message(&("User ".to_string() + &name_before + " set name to " + &message[9..] + "\n"), event_loop);
             Ok(())
         } else if message == "zone" {
-            let current_zone = self.find_connection_by_token(token).user.current_zone() + "\n";
+            let current_zone = self.current_zone(token) + "\n";
             self.send_message(token, &("You are in ".to_string() + &current_zone));
             Ok(())
         } else if message.starts_with("teleport to id ") {
@@ -224,8 +245,19 @@ impl Server {
                     Ok(())
                 }
             }
-        } else if message.starts_with("teleport to name ") {
-            self.send_token_message(token, ByteBuf::from_slice(b"unimplemented\n"));
+        } else if message.starts_with("teleport to ") {
+            let zone = &message[12..];
+            let zone_id_op = self.map.find_zone_from_name(zone);
+            match zone_id_op {
+                Some(zone_id) => self.teleport_player_to_zone(token, zone_id, event_loop),
+                None => {
+                    let name = self.user_name(token);
+                    self.broadcast_message(&(name + " has fumbled a teleport location\n"), event_loop);
+                    Ok(())
+                }
+            }
+        } else if message == "logout" {
+            self.reset_connection(event_loop, token);
             Ok(())
         } else {
             self.send_token_message(token, ByteBuf::from_slice(b"Error, unknown command\n"));
@@ -254,7 +286,15 @@ impl Server {
         self.find_connection_by_token(token).send_message(buffer);
     }
 
+    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
+        let name = self.user_name(token);
+        self.broadcast_message(&(name + " dissolved away\n"), event_loop);
+    }
+
     fn reset_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
+
+        self.handle_user_leaving(event_loop, token);
+
         if self.token == token {
             debug!("Server connection reset; shutting down");
             event_loop.shutdown();

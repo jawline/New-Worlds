@@ -1,26 +1,13 @@
-use std::sync::Arc;
-use map::Map;
-
 pub struct User {
 	pub name: String,
-	pub current_zone: usize,
-	pub map: Arc<Map>
+	pub current_zone: usize
 }
 
 impl User {
-	pub fn load(user_name: &str, map: Arc<Map>) -> User {
+	pub fn load(user_name: &str, zone: usize) -> User {
 		User {
 			name: user_name.to_string(),
-			current_zone: map.start_zone,
-			map: map
+			current_zone: zone
 		}
-	}
-
-	pub fn current_zone(&self) -> String {
-		self.map.zones[self.current_zone].name.clone()
-	}
-
-	pub fn zone_description(&self) -> String {
-		self.map.zones[self.current_zone].desc.clone()
 	}
 }

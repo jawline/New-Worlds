@@ -2,16 +2,12 @@ use mio::*;
 use mio::buf::ByteBuf;
 use mio::tcp::*;
 
-use std::sync::Arc;
-
 use std::io;
 use std::io::{Error, ErrorKind};
 
 use user::User;
 
 use server::Server;
-
-use map::Map;
 
 pub struct Connection {
     pub user: User,
@@ -22,9 +18,9 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(sock: TcpStream, token: Token, map: Arc<Map>) -> Connection {
+    pub fn new(sock: TcpStream, token: Token, zone: usize) -> Connection {
         Connection {
-            user: User::load("Anon", map.clone()),
+            user: User::load("Anon", zone),
             sock: sock,
             token: token,
             interest: EventSet::hup(),
