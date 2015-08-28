@@ -1,4 +1,3 @@
-extern crate nwshared;
 extern crate mio;
 
 #[macro_use] extern crate log;

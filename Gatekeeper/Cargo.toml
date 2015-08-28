@@ -7,6 +7,3 @@ authors = ["Blake Loring <blake_l@parsed.uk>"]
 mio = "*"
 log = "*"
 env_logger = "*"
-
-[dependencies.nwshared]
-path = "../nwshared/"
