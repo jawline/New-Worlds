@@ -68,7 +68,6 @@ impl Handler for Server {
 }
 
 impl Server {
-
     pub fn current_zone_id(&mut self, token: Token) -> usize {
         self.find_connection_by_token(token).user.current_zone
     }
@@ -81,6 +80,38 @@ impl Server {
     pub fn zone_description(&mut self, token: Token) -> String {
         let current_zone_id = self.current_zone_id(token);
         self.map.zones[current_zone_id].desc.clone()
+    }
+}
+
+impl Server {
+
+    fn send_buffer(&mut self, token: Token, buffer: ByteBuf) {
+        self.find_connection_by_token(token).send_message(buffer);
+    }
+
+    fn send_message(&mut self, token: Token, message: &str) {
+        self.send_buffer(token, ByteBuf::from_slice(message.as_bytes()))
+    }
+
+    fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) {
+        self.send_all(message.as_bytes(), event_loop);
+    }
+
+    fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
+        let name = self.find_connection_by_token(token).user.name.clone();
+        self.send_welcome(token);
+        self.broadcast_message(&format!("{} has joined the server\n", name), event_loop);
+    }
+
+    fn send_welcome(&mut self, token: Token) {
+        let current_zone = &self.current_zone(token);
+        let description = &self.zone_description(token);
+        self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
+    }
+
+    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
+        let name = self.user_name(token);
+        self.broadcast_message(&(name + " dissolved away\n"), event_loop);
     }
 }
 
@@ -137,18 +168,6 @@ impl Server {
         }
     }
 
-    fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
-        let name = self.find_connection_by_token(token).user.name.clone();
-        self.send_welcome(token);
-        self.broadcast_message(&format!("{} has joined the server\n", name), event_loop);
-    }
-
-    fn send_welcome(&mut self, token: Token) {
-        let current_zone = &self.current_zone(token);
-        let description = &self.zone_description(token);
-        self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
-    }
-
     fn accept(&mut self, event_loop: &mut EventLoop<Server>) {
         debug!("server accepting new socket");
 
@@ -193,14 +212,6 @@ impl Server {
         };
 
         self.reregister(event_loop);
-    }
-
-    fn send_message(&mut self, token: Token, message: &str) {
-        self.send_token_message(token, ByteBuf::from_slice(message.as_bytes()))
-    }
-
-    fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) {
-        self.send_all(message.as_bytes(), event_loop);
     }
 
     fn user_name(&mut self, token: Token) -> String {
@@ -260,7 +271,8 @@ impl Server {
             self.reset_connection(event_loop, token);
             Ok(())
         } else {
-            self.send_token_message(token, ByteBuf::from_slice(b"Error, unknown command\n"));
+            let name = self.user_name(token);
+            self.broadcast_message(&(name + " has written some unintelligble gibberish\n"), event_loop);
             Ok(())
         }
     }
@@ -280,15 +292,6 @@ impl Server {
             },
             Err(_) => Err(Error::new(ErrorKind::Other, "corrupted message could not be parsed as utf8"))
         }
-    }
-
-    fn send_token_message(&mut self, token: Token, buffer: ByteBuf) {
-        self.find_connection_by_token(token).send_message(buffer);
-    }
-
-    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
-        let name = self.user_name(token);
-        self.broadcast_message(&(name + " dissolved away\n"), event_loop);
     }
 
     fn reset_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
