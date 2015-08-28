@@ -109,8 +109,7 @@ impl Server {
         self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
     }
 
-    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
-        let name = self.user_name(token);
+    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: String) {
         self.broadcast_message(&(name + " dissolved away\n"), event_loop);
     }
 }
@@ -268,6 +267,7 @@ impl Server {
                 }
             }
         } else if message == "logout" {
+            self.send_message(token, "Goodbye sweet prince\nDon't come back...\n");
             self.reset_connection(event_loop, token);
             Ok(())
         } else {
@@ -295,14 +295,10 @@ impl Server {
     }
 
     fn reset_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
-
-        self.handle_user_leaving(event_loop, token);
-
         if self.token == token {
             debug!("Server connection reset; shutting down");
             event_loop.shutdown();
         } else {
-
             debug!("reset connection; token={:?}", token);
 
             //Send any queued items before shutting down
@@ -314,7 +310,9 @@ impl Server {
                 error!("could not shutdown TcpStream before a reset");
             }
 
+            let name = self.user_name(token);
             self.conns.remove(token);
+            self.handle_user_leaving(event_loop, name);
         }
     }
 
