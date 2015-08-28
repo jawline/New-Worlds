@@ -24,4 +24,13 @@ impl Map {
 	pub fn valid_zone_id(&self, zone_id: usize) -> bool {
 		zone_id < self.zones.len()
 	}
+
+	pub fn find_zone_from_name(&self, name: &str) -> Option<usize> {
+		for i in 0..self.zones.len() {
+			if self.zones[i].name == name {
+				return Some(i);
+			}
+		}
+		None
+	}
 }
