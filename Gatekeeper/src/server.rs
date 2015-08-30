@@ -2,6 +2,8 @@ use connection::Connection;
 
 use map::Map;
 
+use help;
+
 use std::io;
 use std::str::from_utf8;
 use std::str::FromStr;
@@ -84,7 +86,6 @@ impl Server {
 }
 
 impl Server {
-
     fn send_buffer(&mut self, token: Token, buffer: ByteBuf) {
         self.find_connection_by_token(token).send_message(buffer);
     }
@@ -107,6 +108,16 @@ impl Server {
         let current_zone = &self.current_zone(token);
         let description = &self.zone_description(token);
         self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
+    }
+
+    fn send_zone_list(&mut self, token: Token) {
+        let mut zone_list = String::new();
+
+        for item in &self.map.zones {
+            zone_list = zone_list + &item.id.to_string() + ". " + &item.name + "\n";
+        }
+        
+        self.send_message(token, &zone_list);
     }
 
     fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: String) {
@@ -243,6 +254,12 @@ impl Server {
         } else if message == "zone" {
             let current_zone = self.current_zone(token) + "\n";
             self.send_message(token, &("You are in ".to_string() + &current_zone));
+            Ok(())
+        } else if message == "help" {
+            self.send_message(token, help::get_help_text());
+            Ok(())
+        } else if message == "zones" {
+            self.send_zone_list(token);
             Ok(())
         } else if message.starts_with("teleport to id ") {
             let data = &message[15..];

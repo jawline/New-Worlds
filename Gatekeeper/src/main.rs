@@ -8,6 +8,10 @@ mod zone;
 mod map;
 mod connection;
 mod server;
+pub mod help;
+
+use zone::Zone;
+use map::Map;
 
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -19,8 +23,19 @@ use server::Server;
 
 fn main() {
 
-    let mut map = map::Map::new("The infinite World", "An empty infinite expanse some think was used for testing");
-    map.add_zone(zone::Zone::load(0).unwrap());
+    let mut map = Map::new("The Infinite World", "An empty infinite expanse some think was used for testing", 1);
+
+    map.add_zone(Zone::new(0, "The Infinite", ""));
+    map.add_zone(Zone::new(1, "The Spire", ""));
+
+    map.add_zone(Zone::new(2, "Lower Spire", ""));
+    map.add_zone(Zone::new(3, "Lower Spire - Trade Quarters", ""));
+    map.add_zone(Zone::new(4, "Lower Spire - Arena", ""));
+    
+    map.add_zone(Zone::new(5, "Challenge Zone", ""));
+    map.add_zone(Zone::new(6, "Bubbling Sewers", ""));
+    map.add_zone(Zone::new(7, "Salty Dungeon", ""));
+    map.add_zone(Zone::new(8, "Demon Alter", ""));
 
     env_logger::init().ok().expect("Failed to init logger");
 

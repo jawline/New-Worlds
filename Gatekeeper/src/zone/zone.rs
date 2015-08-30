@@ -5,14 +5,11 @@ pub struct Zone {
 }
 
 impl Zone {
-	pub fn load(id: usize) -> Option<Zone> {
-		match id {
-			0 => Some(Zone{
-				id: id,
-				name: "The Infinite Room".to_string(),
-				desc: "An infinite room with nothing for infinity in all directions".to_string()
-			}),
-			_ => None
+	pub fn new(id: usize, name: &str, desc: &str) -> Zone {
+		Zone{
+			id: id,
+			name: name.to_string(),
+			desc: desc.to_string()
 		}
 	}
 }

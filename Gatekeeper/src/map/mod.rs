@@ -8,11 +8,12 @@ pub struct Map {
 }
 
 impl Map {
-	pub fn new(name: &str, desc: &str) -> Map {
+
+	pub fn new(name: &str, desc: &str, start_zone: usize) -> Map {
 		Map {
 			name: name.to_string(),
 			desc: desc.to_string(),
-			start_zone: 0,
+			start_zone: start_zone,
 			zones: Vec::new()
 		}
 	}
