@@ -25,14 +25,14 @@ fn main() {
 
     let mut map = Map::new("The Infinite World", "An empty infinite expanse some think was used for testing", 1);
 
-    map.add_zone(Zone::new(0, "The Infinite", ""));
-    map.add_zone(Zone::new(1, "The Spire", ""));
+    map.add_zone(Zone::new(0, "The Infinite", "An infinite expanse, nothing can be seen in any direction"));
+    map.add_zone(Zone::new(1, "The Spire", "A giant stone tower, surrounded by a sprawling grey city, though no signs of life can be seen below"));
 
-    map.add_zone(Zone::new(2, "Lower Spire", ""));
+    map.add_zone(Zone::new(2, "Lower Spire", "The lower portion of the spirte, leading on to a reeking arena and trade quarters"));
     map.add_zone(Zone::new(3, "Lower Spire - Trade Quarters", ""));
     map.add_zone(Zone::new(4, "Lower Spire - Arena", ""));
     
-    map.add_zone(Zone::new(5, "Challenge Zone", ""));
+    map.add_zone(Zone::new(5, "Challenge Zone", "Who the fuck knows what I was thinking when I made this one"));
     map.add_zone(Zone::new(6, "Bubbling Sewers", ""));
     map.add_zone(Zone::new(7, "Salty Dungeon", ""));
     map.add_zone(Zone::new(8, "Demon Alter", ""));

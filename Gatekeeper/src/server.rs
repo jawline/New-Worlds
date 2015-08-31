@@ -252,8 +252,9 @@ impl Server {
             self.broadcast_message(&("User ".to_string() + &name_before + " set name to " + &message[9..] + "\n"), event_loop);
             Ok(())
         } else if message == "zone" {
-            let current_zone = self.current_zone(token) + "\n";
-            self.send_message(token, &("You are in ".to_string() + &current_zone));
+            let current_zone = self.current_zone(token);
+            let zone_description = self.zone_description(token);
+            self.send_message(token, &format!("You are in {}, {}\n", current_zone, zone_description));
             Ok(())
         } else if message == "help" {
             self.send_message(token, help::get_help_text());
