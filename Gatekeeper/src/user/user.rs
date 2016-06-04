@@ -10,4 +10,8 @@ impl User {
 			current_zone: zone
 		}
 	}
+
+	pub fn set_name(&mut self, user_name: &str) {
+		self.name = user_name.to_string();
+	}
 }

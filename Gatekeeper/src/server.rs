@@ -99,8 +99,6 @@ impl Server {
 
     fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
         let name = self.find_connection_by_token(token).user.name.clone();
-        self.send_welcome(token);
-        self.broadcast_message(&format!("{} has joined the server\n", name), event_loop);
     }
 
     fn send_welcome(&mut self, token: Token) {
@@ -246,7 +244,14 @@ impl Server {
         Ok(())
     }
 
-    fn handle_message(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+    fn handshake(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.find_connection_by_token(token).user.set_name(&message);
+        self.send_welcome(token);
+        self.broadcast_message(&format!("{} has joined the server\n", &message), event_loop);
+        Ok(())
+    }
+
+    fn client_message(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         if message.starts_with("say ") {
             let name = self.user_name(token);
             self.broadcast_message(&(name + ": " + &message[4..] + "\n"), event_loop);
@@ -300,6 +305,15 @@ impl Server {
         }
     }
 
+    fn handle_message(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        if !self.find_connection_by_token(token).handshake_done {
+            self.find_connection_by_token(token).handshake_done = true;
+            self.handshake(token, message, event_loop)
+        } else {
+            self.client_message(token, message, event_loop)
+        }
+    }
+
     fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         debug!("server conn readable; token={:?}", token);
 
@@ -319,8 +333,6 @@ impl Server {
             event_loop.shutdown();
         } else {
             debug!("reset connection; token={:?}", token);
-
-            //Send any queued items before shutting down
             if self.find_connection_by_token(token).write_remaining().is_err() {
                 debug!("could not write remaining to client before a reset");
             }

@@ -11,6 +11,7 @@ use server::Server;
 
 pub struct Connection {
     pub user: User,
+    pub handshake_done: bool,
     sock: TcpStream,
     pub token: Token,
     interest: EventSet,
@@ -25,6 +26,7 @@ impl Connection {
             token: token,
             interest: EventSet::hup(),
             send_queue: Vec::new(),
+            handshake_done: false
         }
     }
 
