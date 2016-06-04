@@ -11,7 +11,6 @@ use std::usize;
 use std::io::{Error, ErrorKind};
 
 use mio::*;
-use mio::buf::ByteBuf;
 use mio::tcp::*;
 use mio::util::Slab;
 
@@ -86,12 +85,12 @@ impl Server {
 }
 
 impl Server {
-    fn send_buffer(&mut self, token: Token, buffer: ByteBuf) {
+    fn send_buffer(&mut self, token: Token, buffer: Vec<u8>) {
         self.find_connection_by_token(token).send_message(buffer);
     }
 
     fn send_message(&mut self, token: Token, message: &str) {
-        self.send_buffer(token, ByteBuf::from_slice(message.as_bytes()))
+        self.send_buffer(token, message.as_bytes().to_vec())
     }
 
     fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) {
@@ -137,7 +136,7 @@ impl Server {
     }
 
     pub fn register(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        event_loop.register_opt(
+        event_loop.register(
             &self.sock,
             self.token,
             EventSet::readable(),
@@ -166,8 +165,7 @@ impl Server {
     	let mut bad_connections = Vec::new();
 
         for conn in self.conns.iter_mut() {
-            let conn_send_buf = ByteBuf::from_slice(buffer);
-            conn.send_message(conn_send_buf);
+            conn.send_message(buffer.to_vec());
             if conn.reregister(event_loop).is_err() {
                 bad_connections.push(conn.token);
             }
@@ -178,26 +176,33 @@ impl Server {
         }
     }
 
-    fn accept(&mut self, event_loop: &mut EventLoop<Server>) {
-        debug!("server accepting new socket");
-
-        let sock = match self.sock.accept() {
-            Ok(s) => {
-                match s {
-                    Some(sock) => sock,
-                    None => {
-                        error!("Failed to accept new socket");
-                        self.reregister(event_loop);
-                        return;
-                    }
+    fn grab_incoming(&mut self) -> Option<TcpStream> {
+        match self.sock.accept() {
+            Ok(incoming) => match incoming {
+                Some((sock, _)) => Some(sock),
+                None => {
+                    error!("Failed to accept new socket");
+                    None
                 }
             },
             Err(e) => {
-                error!("Failed to accept new socket, {:?}", e);
-                self.reregister(event_loop);
-                return;
+                error!("Failed to accept new socket {}", e);
+                None
             }
-        };
+        }
+    }
+
+    fn accept(&mut self, event_loop: &mut EventLoop<Server>) {
+        debug!("server accepting new socket");
+
+        let sock = self.grab_incoming();
+        self.reregister(event_loop);
+
+        if !sock.is_some() {
+            return;
+        }
+
+        let sock = sock.unwrap();
 
         let start_zone = self.map.start_zone;
 
@@ -300,11 +305,7 @@ impl Server {
 
         let message = try!(self.find_connection_by_token(token).readable());
 
-        if message.remaining() == message.capacity() {
-            return Ok(());
-        }
-
-        match from_utf8(message.bytes()) {
+        match from_utf8(&message) {
             Ok(base_string) => {
                 self.handle_message(token, base_string.trim(), event_loop)
             },

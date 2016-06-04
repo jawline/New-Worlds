@@ -1,8 +1,8 @@
 use mio::*;
-use mio::buf::ByteBuf;
 use mio::tcp::*;
 
-use std::io;
+use std::io::Result;
+use std::io::{Read, Write};
 use std::io::{Error, ErrorKind};
 
 use user::User;
@@ -14,7 +14,7 @@ pub struct Connection {
     sock: TcpStream,
     pub token: Token,
     interest: EventSet,
-    send_queue: Vec<ByteBuf>,
+    send_queue: Vec<Vec<u8>>,
 }
 
 impl Connection {
@@ -28,42 +28,27 @@ impl Connection {
         }
     }
 
-    pub fn readable(&mut self) -> io::Result<ByteBuf> {
-        let mut recv_buf = ByteBuf::mut_with_capacity(2048);
-        
-        loop {
-            match self.sock.try_read_buf(&mut recv_buf) {
-                Ok(None) => {
-                    debug!("CONN : we read 0 bytes");
-                    break;
-                },
-                Ok(Some(n)) => {
-                    debug!("CONN : we read {} bytes", n);
-                    if n < recv_buf.capacity() {
-                        break;
-                    }
-                },
-                Err(e) => {
-                    error!("Failed to read buffer for token {:?}, error: {}", self.token, e);
-                    return Err(e);
-                }
+    pub fn readable(&mut self) -> Result<Vec<u8>> {
+        let mut recv_buf = [0; 2048];
+
+        match self.sock.read(&mut recv_buf) {
+            Ok(n) => {
+                debug!("CONN : we read {} bytes", n);
+                Ok(recv_buf.iter().take(n).map(|&x| x).collect())
+            },
+            Err(e) => {
+                error!("Failed to read buffer for token {:?}, error: {}", self.token, e);
+                Err(e)
             }
         }
-
-        Ok(recv_buf.flip())
     }
 
-    pub fn write_one(&mut self) -> io::Result<()> {
+    pub fn write_one(&mut self) -> Result<()> {
         try!(self.send_queue.pop()
             .ok_or(Error::new(ErrorKind::Other, "Could not pop send queue"))
-            .and_then(|mut buf| {
-                match self.sock.try_write_buf(&mut buf) {
-                    Ok(None) => {
-                        debug!("client flushing buf; WouldBlock");
-                        self.send_queue.push(buf);
-                        Ok(())
-                    },
-                    Ok(Some(n)) => {
+            .and_then(|buf| {
+                match self.sock.write(&buf) {
+                    Ok(n) => {
                         debug!("CONN : we wrote {} bytes", n);
                         Ok(())
                     },
@@ -82,7 +67,7 @@ impl Connection {
         Ok(())
     }
 
-    pub fn write_remaining(&mut self) -> io::Result<()> {
+    pub fn write_remaining(&mut self) -> Result<()> {
         while self.interest.is_writable() {
             if let Err(msg) = self.write_one() {
                 return Err(msg);
@@ -91,18 +76,18 @@ impl Connection {
         Ok(())
     }
 
-    pub fn shutdown(&mut self) -> io::Result<()> {
+    pub fn shutdown(&mut self) -> Result<()> {
         self.sock.shutdown(Shutdown::Both)
     }
 
-    pub fn send_message(&mut self, message: ByteBuf) {
+    pub fn send_message(&mut self, message: Vec<u8>) {
         self.send_queue.push(message);
         self.interest.insert(EventSet::writable());
     }
 
-    pub fn register(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+    pub fn register(&mut self, event_loop: &mut EventLoop<Server>) -> Result<()> {
         self.interest.insert(EventSet::readable());
-        event_loop.register_opt(
+        event_loop.register(
             &self.sock,
             self.token,
             self.interest,
@@ -113,7 +98,7 @@ impl Connection {
         })
     }
 
-    pub fn reregister(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+    pub fn reregister(&mut self, event_loop: &mut EventLoop<Server>) -> Result<()> {
         event_loop.reregister(
             &self.sock,
             self.token,
