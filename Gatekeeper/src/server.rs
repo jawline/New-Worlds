@@ -97,7 +97,7 @@ impl Server {
         self.send_all(message.as_bytes(), event_loop);
     }
 
-    fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, token: Token) {
+    fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
         //STRIPPED - SEND INIT MESSAGE
     }
 
