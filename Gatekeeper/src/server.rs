@@ -97,8 +97,8 @@ impl Server {
         self.send_all(message.as_bytes(), event_loop);
     }
 
-    fn new_connection_accepted(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
-        let name = self.find_connection_by_token(token).user.name.clone();
+    fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, token: Token) {
+        //STRIPPED - SEND INIT MESSAGE
     }
 
     fn send_welcome(&mut self, token: Token) {
