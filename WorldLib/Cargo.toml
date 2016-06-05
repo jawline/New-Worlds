@@ -1,0 +1,6 @@
+[package]
+name = "world_lib"
+version = "0.1.0"
+authors = ["Blake Loring <blake_l@parsed.uk>"]
+
+[dependencies]

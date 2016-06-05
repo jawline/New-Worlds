@@ -204,10 +204,7 @@ impl Server {
 
         let start_zone = self.map.start_zone;
 
-        match self.conns.insert_with(|token| {
-            debug!("registering {:?} with event loop", token);
-            Connection::new(sock, token, start_zone)
-        }) {
+        match self.conns.insert_with(|token| Connection::new(sock, token, start_zone)) {
             Some(token) => {
                 match self.find_connection_by_token(token).register(event_loop) {
                     Ok(_) => {
