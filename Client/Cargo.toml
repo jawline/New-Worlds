@@ -6,9 +6,7 @@ authors = ["Blake Loring <blake_l@parsed.uk>"]
 [dependencies]
 piston = "0.26.0"
 piston_window = "*"
-piston2d-opengl_graphics = "0.36.0"
 piston2d-graphics = "0.19.0"
-pistoncore-sdl2_window = "0.36.0"
 freetype-rs = "0.11.0"
 find_folder = "0.3.0"
 conrod = "0.46.2"

@@ -13,7 +13,6 @@ pub struct TilesetInfo {
 
 impl TilesetInfo {
     pub fn load(base_file: &str) -> TilesetInfo {
-    	println!("{}", base_file);
         let text = util::as_string(base_file).unwrap();
         return json::decode(&text).unwrap();
     }
@@ -36,5 +35,9 @@ impl Tileset {
 			info: TilesetInfo::load(tiles.join(&(file.to_string() + ".info")).to_str().unwrap()),
 			texture: Tileset::load_tileset(window, &tiles.join(&(file.to_string() + ".png")))
 		}
+	}
+
+	pub fn src_map(&self, x: usize, y: usize) -> [f64; 4] {
+		[(x * self.info.tile_height) as f64, (y * self.info.tile_height) as f64, self.info.tile_width as f64, self.info.tile_height as f64]
 	}
 }

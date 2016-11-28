@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{Read, Error};
-use std::string::{String, ToString};
+use std::string::String;
 
 pub fn as_string(filename: &str) -> Result<String, Error> {
     let mut result = String::new();
