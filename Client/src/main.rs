@@ -12,7 +12,9 @@ mod tileset;
 mod noui;
 mod fonts;
 mod assets;
+mod map;
 
+use map::Map;
 use login::*;
 
 use conrod::backend::piston::{self, Window, WindowEvents, OpenGL};
@@ -54,6 +56,7 @@ fn main() {
     let mut logged_in = false;
 
     let tiles = tileset::Tileset::new(&mut window, &assets::tiles(), "grass");
+    let map = Map::new(64, 64);
 
     // Poll events from the window.
     while let Some(event) = window.next_event(&mut events) {

@@ -2,8 +2,7 @@ use rustc_serialize::json;
 use util;
 use std::path::PathBuf;
 use piston_window::{Texture, Flip, G2dTexture, TextureSettings};
-
-use conrod::backend::piston::{Window};
+use conrod::backend::piston::Window;
 
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct TilesetInfo {
