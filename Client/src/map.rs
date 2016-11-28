@@ -3,6 +3,7 @@ use tileset::Tileset;
 use graphics::{Image};
 use conrod::backend::piston::gfx::*;
 use std::default::Default;
+use rustc_serialize::json;
 
 #[derive(RustcEncodable, RustcDecodable, Clone, Copy)]
 pub struct Tile {
@@ -41,5 +42,10 @@ impl Map {
 	    		}
 	    	}
     	}
+	}
+
+	pub fn as_json(&self) -> String {
+		json::encode(&self).unwrap()
+
 	}
 }

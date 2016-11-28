@@ -55,6 +55,8 @@ fn main() {
     let tiles = tileset::Tileset::new(&mut window, &assets::tiles(), "grass");
     let map = Map::new(16, 64);
 
+    println!("{}", map.as_json());
+
     let mut x_off = 0.0;
     let mut y_off = 0.0;
 
