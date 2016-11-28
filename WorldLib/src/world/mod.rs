@@ -17,6 +17,7 @@ impl World {
 			entity.update(utime);
 		}
 	}
+
 	pub fn serialize(&self) -> String {
 		"none".to_string()
 	}
