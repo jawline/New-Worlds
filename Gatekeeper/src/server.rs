@@ -95,13 +95,16 @@ impl Server {
         self.send_buffer(token, message.as_bytes().to_vec())
     }
 
+    fn say(&mut self, token: Token, message: &str) {
+        self.send_message(token, &(Message::Say(message.to_string()).as_json() + "\0"))
+    }
+
     fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         self.send_all(message.as_bytes(), event_loop);
         Ok(())
     }
 
     fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
-        //STRIPPED - SEND INIT MESSAGE
         println!("Accepted new connection");
     }
 
@@ -272,6 +275,7 @@ impl Server {
                 self.find_connection_by_token(token).buffer += base_string;
 
                 loop {
+
                     //Find the null terminator that splits messages
                     let idx = self.find_connection_by_token(token).buffer.find('\0');
 
@@ -290,6 +294,7 @@ impl Server {
 
                         //Split the null terminator off of message
                         remain_p = &remain_p[1..];
+
                         msg = msg_p.to_string();
                         remain = remain_p.to_string();
                     };
@@ -315,6 +320,7 @@ impl Server {
             println!("Server connection reset; shutting down");
             event_loop.shutdown();
         } else {
+            
             println!("reset connection; token={:?}", token);
             
             if self.find_connection_by_token(token).write_remaining().is_err() {
