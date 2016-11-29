@@ -12,3 +12,6 @@ find_folder = "0.3.0"
 conrod = "0.46.2"
 rustc-serialize = "*"
 image = "*"
+
+[dependencies.world_lib]
+path = "../WorldLib/"

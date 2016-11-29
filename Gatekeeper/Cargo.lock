@@ -133,6 +133,11 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "rustc-serialize"
+version = "0.3.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "slab"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -182,6 +187,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "world_lib"
 version = "0.1.0"
+dependencies = [
+ "rustc-serialize 0.3.21 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "ws2_32-sys"
@@ -208,6 +216,7 @@ dependencies = [
 "checksum nix 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f05c2fc965fc1cd6b73fa57fa7b89f288178737f2f3ce9e63e4a6a141189000e"
 "checksum regex 0.1.71 (registry+https://github.com/rust-lang/crates.io-index)" = "e58a1b7d2bfecc0746e8587c30a53d01ea7bc0e98fac54e5aaa375b94338a0cc"
 "checksum regex-syntax 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "baa04823ba7be7ed0bed3d0704c7b923019d9c4e4931c5af2804c7c7a0e3d00b"
+"checksum rustc-serialize 0.3.21 (registry+https://github.com/rust-lang/crates.io-index)" = "bff9fc1c79f2dec76b253273d07682e94a978bd8f132ded071188122b2af9818"
 "checksum slab 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "d807fd58c4181bbabed77cb3b891ba9748241a552bcc5be698faaebefc54f46e"
 "checksum thread-id 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a9539db560102d1cef46b8b78ce737ff0bb64e7e18d35b2a5688f7d097d0ff03"
 "checksum thread_local 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)" = "55dd963dbaeadc08aa7266bf7f91c3154a7805e32bb94b820b769d2ef3b4744d"

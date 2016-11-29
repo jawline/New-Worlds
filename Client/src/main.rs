@@ -3,6 +3,7 @@ extern crate find_folder;
 extern crate graphics;
 extern crate rustc_serialize;
 extern crate piston_window;
+extern crate world_lib;
 
 mod ui;
 mod login;

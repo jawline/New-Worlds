@@ -1,5 +1,6 @@
 use std::net::TcpStream;
 use std::io::{Read, Write};
+use world_lib::Message;
 
 pub struct Connection {
 	pub stream: TcpStream
@@ -15,11 +16,18 @@ impl Connection {
 	pub fn connect(server: &str, username: &str) -> Connection {
 		let mut stream = TcpStream::connect(server).unwrap();
 		stream.set_nonblocking(true);
-		write!(stream, "{}", username);
+		write!(stream, "{}\0", Message::Login(username.to_string(), "test".to_string()).as_json());
 
 		Connection::consume_ack(&mut stream);
 
-		write!(stream, "say Hi\n");
+		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
+
+		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
+
+		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
+
+		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
+
 
 		Connection {
 			stream: stream

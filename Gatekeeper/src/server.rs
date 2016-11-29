@@ -10,6 +10,8 @@ use std::str::FromStr;
 use std::usize;
 use std::io::{Error, ErrorKind};
 
+use world_lib::Message;
+
 use mio::*;
 use mio::tcp::*;
 use mio::util::Slab;
@@ -26,23 +28,23 @@ impl Handler for Server {
     type Message = ();
 
     fn ready(&mut self, event_loop: &mut EventLoop<Server>, token: Token, events: EventSet) {
-        debug!("events = {:?}", events);
-        assert!(token != Token(0), "[BUG]: Received event for Token(0)");
+        println!("events = {:?}", events);
+        println!("{:?} {}", token != Token(0), "[BUG]: Received event for Token(0)");
 
         if events.is_error() {
-            warn!("Error event for {:?}", token);
+            println!("Error event for {:?}", token);
             self.reset_connection(event_loop, token);
             return;
         }
 
         if events.is_hup() {
-            trace!("Hup event for {:?}", token);
+            println!("Hup event for {:?}", token);
             self.reset_connection(event_loop, token);
             return;
         }
 
         if events.is_writable() {
-            trace!("Write event for {:?}", token);
+            println!("Write event for {:?}", token);
             assert!(self.token != token, "Received writable event for Server");
             self.find_connection_by_token(token).write_one()
                 .and_then(|_| self.find_connection_by_token(token).reregister(event_loop))
@@ -53,14 +55,14 @@ impl Handler for Server {
         }
 
         if events.is_readable() {
-            trace!("Read event for {:?}", token);
+            println!("Read event for {:?}", token);
             if self.token == token {
                 self.accept(event_loop);
             } else {
                 self.read_from_connection(event_loop, token)
                     .and_then(|_| self.find_connection_by_token(token).reregister(event_loop))
                     .unwrap_or_else(|e| {
-                        warn!("Read event failed for {:?}: {:?}", token, e);
+                        println!("Read event failed for {:?}: {:?}", token, e);
                         self.reset_connection(event_loop, token);
                     });
             }
@@ -93,8 +95,9 @@ impl Server {
         self.send_buffer(token, message.as_bytes().to_vec())
     }
 
-    fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) {
+    fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         self.send_all(message.as_bytes(), event_loop);
+        Ok(())
     }
 
     fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
@@ -118,8 +121,8 @@ impl Server {
         self.send_message(token, &zone_list);
     }
 
-    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: String) {
-        self.broadcast_message(&(name + " dissolved away\n"), event_loop);
+    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) {
+        self.say_all(&(name.to_string() + " dissolved away\n"), event_loop);
     }
 }
 
@@ -229,78 +232,34 @@ impl Server {
         self.find_connection_by_token(token).user.name.clone()
     }
 
-    fn teleport_player_to_zone(&mut self, token: Token, zone_id: usize, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        let valid_zone = self.map.valid_zone_id(zone_id);
-        if valid_zone {
-            self.find_connection_by_token(token).user.current_zone = zone_id;
-            let name = self.user_name(token);
-            let to_zone_name = self.current_zone(token);
-            self.broadcast_message(&("User ".to_string() + &name + " has teleported to zone " + &to_zone_name + "\n"), event_loop);
-        } else {
-            self.send_message(token, &(zone_id.to_string() + &" is not a valid zone ID\n"));
-        }
-        Ok(())
+    fn say_all(&mut self, msg: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.broadcast_message(&(Message::Say(msg.to_string()).as_json() + "\0"), event_loop) 
     }
 
     fn handshake(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        self.find_connection_by_token(token).user.set_name(&message);
-        self.send_welcome(token);
-        self.broadcast_message(&format!("{} has joined the server\n", &message), event_loop);
-        Ok(())
+        match Message::from_json(message) {
+            Ok(Message::Login(username, _)) => {
+                self.find_connection_by_token(token).user.set_name(&username);
+                self.send_welcome(token);
+                self.say_all(&format!("{} has joined the server", username), event_loop)
+            },
+            _ => { self.kill(token, "Bad login") }
+        }
     }
 
     fn client_message(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        if message.starts_with("say ") {
-            let name = self.user_name(token);
-            self.broadcast_message(&(name + ": " + &message[4..] + "\n"), event_loop);
-            Ok(())
-        } else if message.starts_with("set name ") {
-            let name_before = self.user_name(token);
-            self.find_connection_by_token(token).user.name = message[9..].to_string();
-            self.broadcast_message(&("User ".to_string() + &name_before + " set name to " + &message[9..] + "\n"), event_loop);
-            Ok(())
-        } else if message == "zone" {
-            let current_zone = self.current_zone(token);
-            let zone_description = self.zone_description(token);
-            self.send_message(token, &format!("You are in {}, {}\n", current_zone, zone_description));
-            Ok(())
-        } else if message == "help" {
-            self.send_message(token, help::get_help_text());
-            Ok(())
-        } else if message == "zones" {
-            self.send_zone_list(token);
-            Ok(())
-        } else if message.starts_with("teleport to id ") {
-            let data = &message[15..];
-            match usize::from_str(&data) {
-                Ok(id) => {
-                    self.teleport_player_to_zone(token, id, event_loop)
-                },
-                Err(_) => {
-                    self.broadcast_message("Somebody was an idiot\n", event_loop);
-                    Ok(())
-                }
-            }
-        } else if message.starts_with("teleport to ") {
-            let zone = &message[12..];
-            let zone_id_op = self.map.find_zone_from_name(zone);
-            match zone_id_op {
-                Some(zone_id) => self.teleport_player_to_zone(token, zone_id, event_loop),
-                None => {
-                    let name = self.user_name(token);
-                    self.broadcast_message(&(name + " has fumbled a teleport location\n"), event_loop);
-                    Ok(())
-                }
-            }
-        } else if message == "logout" {
-            self.send_message(token, "Goodbye sweet prince\nDon't come back...\n");
-            self.reset_connection(event_loop, token);
-            Ok(())
-        } else {
-            let name = self.user_name(token);
-            self.broadcast_message(&(name + " has written some unintelligble gibberish\n"), event_loop);
-            Ok(())
+        match Message::from_json(message) {
+            Ok(Message::Say(msg)) => {
+                let msg = self.find_connection_by_token(token).user.name.to_string() + ": " + &msg;
+                self.say_all(&msg, event_loop)
+            },
+            _ => Err(Error::new(ErrorKind::Other, "Unhandled Message"))
         }
+    }
+
+    fn kill(&mut self, token: Token, message: &str) -> io::Result<()> {
+        self.send_message(token, &Message::Kill(message.to_string()).as_json());
+        Err(Error::new(ErrorKind::Other, "Killed Connection"))
     }
 
     fn handle_message(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
@@ -312,17 +271,53 @@ impl Server {
         }
     }
 
-    fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
-        debug!("server conn readable; token={:?}", token);
-
+    fn is_message(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         let message = try!(self.find_connection_by_token(token).readable());
 
         match from_utf8(&message) {
+
             Ok(base_string) => {
-                self.handle_message(token, base_string.trim(), event_loop)
+
+                //Add current message to buffer
+                self.find_connection_by_token(token).buffer += base_string;
+
+                loop {
+                    //Find the null terminator that splits messages
+                    let idx = self.find_connection_by_token(token).buffer.find('\0');
+
+                    //Break if no messages left to handle
+                    if idx.is_none() {
+                        break;
+                    }
+
+                    //Mutable outside of closure to avoid borrow hell
+                    let (msg, remain): (String, String);
+
+                    //Closure to split the buffer on the token
+                    {
+                        //Split remain_p to include the null terminator
+                        let (msg_p, mut remain_p) = self.find_connection_by_token(token).buffer.split_at(idx.unwrap());
+
+                        //Split the null terminator off of message
+                        remain_p = &remain_p[1..];
+                        msg = msg_p.to_string();
+                        remain = remain_p.to_string();
+                    };
+
+                    println!("Handling Message: Msg: {} Remain: {}", msg, remain);
+
+                    self.find_connection_by_token(token).buffer = remain;
+                    try!(self.handle_message(token, msg.trim(), event_loop));
+                }
+                Ok(())
             },
             Err(_) => Err(Error::new(ErrorKind::Other, "corrupted message could not be parsed as utf8"))
         }
+    }
+
+    fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
+        debug!("server conn readable; token={:?}", token);
+        self.is_message(event_loop, token)
     }
 
     fn reset_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
@@ -331,6 +326,7 @@ impl Server {
             event_loop.shutdown();
         } else {
             debug!("reset connection; token={:?}", token);
+            
             if self.find_connection_by_token(token).write_remaining().is_err() {
                 debug!("could not write remaining to client before a reset");
             }
@@ -341,7 +337,7 @@ impl Server {
 
             let name = self.user_name(token);
             self.conns.remove(token);
-            self.handle_user_leaving(event_loop, name);
+            self.handle_user_leaving(event_loop, &name);
         }
     }
 
