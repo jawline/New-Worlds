@@ -111,18 +111,8 @@ impl Server {
         self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
     }
 
-    fn send_zone_list(&mut self, token: Token) {
-        let mut zone_list = String::new();
-
-        for item in &self.map.zones {
-            zone_list = zone_list + &item.id.to_string() + ". " + &item.name + "\n";
-        }
-        
-        self.send_message(token, &zone_list);
-    }
-
-    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) {
-        self.say_all(&(name.to_string() + " dissolved away\n"), event_loop);
+    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) -> io::Result<()> {
+        self.say_all(&(name.to_string() + " dissolved away"), event_loop)
     }
 }
 
@@ -316,28 +306,31 @@ impl Server {
     }
 
     fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
-        debug!("server conn readable; token={:?}", token);
+        println!("server conn readable; token={:?}", token);
         self.is_message(event_loop, token)
     }
 
     fn reset_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) {
         if self.token == token {
-            debug!("Server connection reset; shutting down");
+            println!("Server connection reset; shutting down");
             event_loop.shutdown();
         } else {
-            debug!("reset connection; token={:?}", token);
+            println!("reset connection; token={:?}", token);
             
             if self.find_connection_by_token(token).write_remaining().is_err() {
-                debug!("could not write remaining to client before a reset");
+                println!("could not write remaining to client before a reset");
             }
 
             if self.find_connection_by_token(token).shutdown().is_err() {
-                error!("could not shutdown TcpStream before a reset");
+                println!("could not shutdown TcpStream before a reset");
             }
 
             let name = self.user_name(token);
             self.conns.remove(token);
-            self.handle_user_leaving(event_loop, &name);
+
+            if self.handle_user_leaving(event_loop, &name).is_err() {
+                println!("Error handling user leave");
+            }
         }
     }
 
