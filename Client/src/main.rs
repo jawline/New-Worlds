@@ -15,10 +15,11 @@ mod map;
 
 use map::Map;
 use login::*;
+use graphics::math::{identity, Matrix2d};
 
 use conrod::backend::piston::{self, Window, WindowEvents, OpenGL};
 use conrod::backend::piston::event::{UpdateEvent};
-use piston_window::{PressEvent, clear, ReleaseEvent, Button, Key, G2d, Transformed};
+use piston_window::{PressEvent, MouseCursorEvent, MouseButton, TouchEvent, clear, ReleaseEvent, Button, Key, G2d, Transformed};
 
 const WIDTH: u32 = 1080;
 const HEIGHT: u32 = 720;
@@ -34,10 +35,6 @@ fn build_window() -> (Window, WindowEvents, conrod::Ui, ui::Ids) {
 fn main() {
 
     let (mut window, mut events, mut ui, ids) = build_window();
-
-    // A unique identifier for each widget.
-    let ids = ui::Ids::new(ui.widget_id_generator());
-
     fonts::setup(&mut ui);
 
     let mut text_texture_cache = piston::window::GlyphCache::new(&mut window, WIDTH, HEIGHT);
@@ -49,7 +46,7 @@ fn main() {
     let mut logged_in = false;
 
     let tiles = tileset::Tileset::new(&mut window, &assets::tiles(), "grass");
-    let map = Map::new(16, 64);
+    let mut map = Map::new(16, 64);
 
     let mut x_off = 0.0;
     let mut y_off = 0.0;
@@ -61,11 +58,24 @@ fn main() {
     let mut zoom = false;
     let mut zoom_out = false;
     let mut scale = 1.0;
+    let mut cursor = (0.0, 0.0);
+
+    fn build_transform(initial: Matrix2d, (x_off, y_off): (f64, f64), scale: f64) -> Matrix2d {
+        initial.scale(scale, scale).trans(-x_off, -y_off)
+    }
+
+    fn build_inverse(initial: Matrix2d, (x_off, y_off): (f64, f64), scale: f64) -> Matrix2d {
+        initial.trans(x_off, y_off).scale(scale, scale)
+    }
 
     // Poll events from the window.
     while let Some(event) = window.next_event(&mut events) {
 
         let mut consumed = false;
+
+        event.mouse_cursor(|x, y| {
+            cursor = (x,y);
+        });
 
         if let Some(button) = event.press_args() {
             
@@ -120,6 +130,13 @@ fn main() {
                 zoom_out = false;
             }
 
+            if button == Button::Mouse(MouseButton::Left) {
+                let (x, y) = map.get_elem(cursor, build_inverse(identity(), (x_off, y_off), scale));
+                println!("{} {}", x, y);
+                let idx = map.idx(x,y);
+                map.layers[0][idx].y = 1;
+            }
+
             consumed = true;
         }
 
@@ -164,7 +181,7 @@ fn main() {
 
             clear([0.0,0.0,0.0,0.0], g);
 
-            map.draw(&tiles, c.scale(scale, scale).transform.trans(-x_off, -y_off), g);
+            map.draw(&tiles, build_transform(c.transform, (x_off, y_off), scale), g);
 
 /*          if let Some(primitives) = ui.draw_if_changed() {
                 fn texture_from_image<T>(img: &T) -> &T { img };
