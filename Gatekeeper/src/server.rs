@@ -99,6 +99,7 @@ impl Server {
 
     fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
         //STRIPPED - SEND INIT MESSAGE
+        println!("Accepted new connection");
     }
 
     fn send_welcome(&mut self, token: Token) {

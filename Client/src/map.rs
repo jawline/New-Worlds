@@ -19,8 +19,8 @@ pub struct Map {
 	pub layers: Vec<Layer>,
 	pub width: usize,
 	pub height: usize,
-	pub tile_width: usize,
-	pub tile_height: usize
+	pub tile_width: f64,
+	pub tile_height: f64
 }
 
 impl Map {
@@ -30,8 +30,8 @@ impl Map {
 			layers: [(0..(w * h)).map(|_| Tile {x: 0, y: 0}).collect()].to_vec(),
 			width: w,
 			height: h,
-			tile_width: 64,
-			tile_height: 32
+			tile_width: 64.0,
+			tile_height: 16.0
 		}
 	}
 
@@ -40,8 +40,8 @@ impl Map {
 		for layer in &self.layers {
 	    	for y in 0..self.height {
 	    		for x in 0..self.width {
-	    			let l_x = if y % 2 == 0 { (x as f64) * 64.0 } else { 32.0 + (x as f64 * 64.0) };
-			   		let l_y = (y as f64) * 16.0;
+	    			let l_x = if y % 2 == 0 { (x as f64) * self.tile_width } else { (self.tile_width / 2.0) + (x as f64 * self.tile_width) };
+			   		let l_y = (y as f64) * self.tile_height;
 			   		let tile = layer[self.idx(x, y)];
 					image.src_rect(tiles.src_map(tile.x, tile.y)).draw(&tiles.texture, &Default::default(), trans.trans(l_x, l_y), g);
 	    		}
@@ -52,9 +52,19 @@ impl Map {
 	pub fn get_elem(&self, (x, y): (f64, f64), trans: Matrix2d) -> (usize, usize) {
 		use graphics::math::transform_vec;
 		let transformed = transform_vec(trans, [x, y]);
-		let (x, y) = (transformed[0], transformed[1]);
-		let (x, y) = (x / self.tile_width as f64, y / self.tile_height as f64);
-		(x as usize, y as usize)
+		let (mut x, y) = (transformed[0], transformed[1]);
+
+		//Calculate y for the x offset
+		let y = (y / self.tile_height) as usize;
+		
+		//Deal with the ridged offset
+		if y % 2 == 0 {
+			x -= self.tile_width / 2.0;
+		}
+
+		let x = (x / self.tile_width) as usize;
+
+		(x, y)
 	}
 
 	pub fn idx(&self, x: usize, y: usize) -> usize {
