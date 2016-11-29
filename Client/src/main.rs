@@ -23,21 +23,17 @@ use piston_window::{PressEvent, clear, ReleaseEvent, Button, Key, G2d, Transform
 const WIDTH: u32 = 1080;
 const HEIGHT: u32 = 720;
 
-fn build_window() -> Window {
+fn build_window() -> (Window, WindowEvents, conrod::Ui, ui::Ids) {
     let opengl = OpenGL::V3_2;
-	piston::window::WindowSettings::new("New Worlds", [WIDTH, HEIGHT])
-        .opengl(opengl).exit_on_esc(true).build().unwrap()
+    let window = piston::window::WindowSettings::new("New Worlds", [WIDTH, HEIGHT]).opengl(opengl).exit_on_esc(true).build().unwrap();
+    let mut ui = conrod::UiBuilder::new([WIDTH as f64, HEIGHT as f64]).build();
+    let ids = ui::Ids::new(ui.widget_id_generator());
+    (window, WindowEvents::new(), ui, ids)
 }
 
 fn main() {
 
-    let mut window = build_window();
-
-    // Create the event loop.
-    let mut events = WindowEvents::new();
-
-    // Construct our `Ui`.
-    let mut ui = conrod::UiBuilder::new([WIDTH as f64, HEIGHT as f64]).build();
+    let (mut window, mut events, mut ui, ids) = build_window();
 
     // A unique identifier for each widget.
     let ids = ui::Ids::new(ui.widget_id_generator());
@@ -54,8 +50,6 @@ fn main() {
 
     let tiles = tileset::Tileset::new(&mut window, &assets::tiles(), "grass");
     let map = Map::new(16, 64);
-
-    println!("{}", map.as_json());
 
     let mut x_off = 0.0;
     let mut y_off = 0.0;
@@ -172,7 +166,7 @@ fn main() {
 
             map.draw(&tiles, c.scale(scale, scale).transform.trans(-x_off, -y_off), g);
 
-/*            if let Some(primitives) = ui.draw_if_changed() {
+/*          if let Some(primitives) = ui.draw_if_changed() {
                 fn texture_from_image<T>(img: &T) -> &T { img };
                 piston::window::draw(c, g, primitives,
               		&mut text_texture_cache,
@@ -182,7 +176,7 @@ fn main() {
 
             ui.needs_redraw();*/
 
-            std::thread::sleep(std::time::Duration::from_millis(5))
+            //std::thread::sleep(std::time::Duration::from_millis(5))
         });
     }
 
