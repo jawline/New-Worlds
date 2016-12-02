@@ -66,69 +66,8 @@ impl Handler for Server {
 }
 
 /**
- * Sending u8 buffers logic
+ * General setup & connection logic
  */
-
-impl Server {
-    fn send_buffer(&mut self, token: Token, buffer: &[u8]) {
-        self.find_connection_by_token(token).send_message(buffer);
-    }
-
-    fn send_all_buffer(&mut self, buffer: &[u8], event_loop: &mut EventLoop<Server>) {
-
-        let mut bad_connections = Vec::new();
-
-        for conn in self.conns.iter_mut() {
-            conn.send_message(buffer);
-            if conn.reregister(event_loop).is_err() {
-                bad_connections.push(conn.token);
-            }
-        }
-
-        for token in bad_connections {
-            self.reset_connection(event_loop, token);
-        }
-    }
-}
-
-/**
- * Local for sending Message structs
- */
-
-impl Server {
-    fn send_message(&mut self, token: Token, message: &Message) {
-        self.send_buffer(token, (message.as_json() + "\0").as_bytes())
-    }
-
-    fn broadcast_message(&mut self, message: &Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        self.send_all_buffer(format!("{}\0", message.as_json()).as_bytes(), event_loop);
-        Ok(())
-    }
-}
-
-/**
- * Sending message logic
- */
-
-impl Server {
-    fn say(&mut self, token: Token, message: &str) {
-        self.send_message(token, &Message::Say(message.to_string()))
-    }
-
-    fn say_all(&mut self, msg: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        self.broadcast_message(&Message::Say(msg.to_string()), event_loop) 
-    }
-}
-
-impl Server {
-    fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
-        println!("Accepted new connection");
-    }
-
-    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) -> io::Result<()> {
-        self.say_all(&(name.to_string() + " dissolved away"), event_loop)
-    }
-}
 
 impl Server {
 
@@ -218,64 +157,6 @@ impl Server {
         self.find_connection_by_token(token).user.name.clone()
     }
 
-    fn handshake(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        match message {
-            Message::Login(username, _) => {
-                self.find_connection_by_token(token).user.set_name(&username);
-                let map_json = self.map.as_json();
-                println!("Sending JSON");
-                self.send_message(token, &Message::Map(map_json));
-                self.say_all(&format!("{} has joined the server", username), event_loop)
-            },
-            _ => { self.kill(token, "Bad login") }
-        }
-    }
-
-    fn client_message(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        match message {
-            Message::Say(msg) => {
-                let msg = self.find_connection_by_token(token).user.name.to_string() + ": " + &msg;
-                self.say_all(&msg, event_loop)
-            },
-            Message::Map(mapdata) => {
-                self.map = Map::from_json(&mapdata);
-                let new_json = self.map.as_json();
-                self.broadcast_message(&Message::Map(new_json), event_loop)
-            },
-            _ => Err(Error::new(ErrorKind::Other, "Unhandled Message"))
-        }
-    }
-
-    fn kill(&mut self, token: Token, message: &str) -> io::Result<()> {
-        self.send_message(token, &Message::Kill(message.to_string()));
-        Err(Error::new(ErrorKind::Other, "Killed Connection"))
-    }
-
-    fn handle_message(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        if !self.find_connection_by_token(token).handshake_done {
-            self.find_connection_by_token(token).handshake_done = true;
-            self.handshake(token, message, event_loop)
-        } else {
-            self.client_message(token, message, event_loop)
-        }
-    }
-
-    fn is_message(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
-        let message = try!(self.find_connection_by_token(token).readable());
-        match from_utf8(&message) {
-            Ok(base_string) => {
-                let mut local_buffer_copy = (self.find_connection_by_token(token).buffer.to_string() + base_string).to_string();
-                while let Some((msg, remain)) = try!(next_io(&local_buffer_copy)) {
-                    try!(self.handle_message(token, msg, event_loop));
-                    local_buffer_copy = remain;
-                }
-                self.find_connection_by_token(token).buffer = local_buffer_copy;
-                Ok(())
-            },
-            Err(_) => Err(Error::new(ErrorKind::Other, "corrupted message could not be parsed as utf8"))
-        }
-    }
-
     fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         println!("server conn readable; token={:?}", token);
         self.is_message(event_loop, token)
@@ -308,5 +189,143 @@ impl Server {
 
     fn find_connection_by_token<'a>(&'a mut self, token: Token) -> &'a mut Connection {
         &mut self.conns[token]
+    }
+}
+
+/**
+ * Sending u8 buffers logic
+ */
+
+impl Server {
+    fn send_buffer(&mut self, token: Token, buffer: &[u8]) {
+        self.find_connection_by_token(token).send_message(buffer);
+    }
+
+    fn send_all_buffer(&mut self, buffer: &[u8], event_loop: &mut EventLoop<Server>) {
+
+        let mut bad_connections = Vec::new();
+
+        for conn in self.conns.iter_mut() {
+            conn.send_message(buffer);
+            if conn.reregister(event_loop).is_err() {
+                bad_connections.push(conn.token);
+            }
+        }
+
+        for token in bad_connections {
+            self.reset_connection(event_loop, token);
+        }
+    }
+}
+
+/**
+ * Local for sending Message structs
+ */
+
+impl Server {
+    fn send_message(&mut self, token: Token, message: &Message) {
+        self.send_buffer(token, (message.as_json() + "\0").as_bytes())
+    }
+
+    fn broadcast_message(&mut self, message: &Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.send_all_buffer(format!("{}\0", message.as_json()).as_bytes(), event_loop);
+        Ok(())
+    }
+}
+
+/**
+ * Sending message logic
+ */
+
+impl Server {
+    fn say(&mut self, token: Token, message: &str) {
+        self.send_message(token, &Message::Say(message.to_string()))
+    }
+
+    fn say_all(&mut self, msg: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.broadcast_message(&Message::Say(msg.to_string()), event_loop) 
+    }
+}
+
+/**
+ * Logic for handling user enter / leave events
+ */
+impl Server {
+    fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
+        println!("Accepted new connection");
+    }
+
+    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) -> io::Result<()> {
+        self.say_all(&(name.to_string() + " dissolved away"), event_loop)
+    }
+}
+
+/**
+ * Logic for handling user messages
+ */
+
+impl Server {
+
+    /**
+     * Do the user handshake
+     */
+    fn handshake(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        match message {
+            Message::Login(username, _) => {
+                self.find_connection_by_token(token).user.set_name(&username);
+                let map_json = self.map.as_json();
+                self.send_message(token, &Message::Map(map_json));
+                self.say_all(&format!("{} has joined the server", username), event_loop)
+            },
+            _ => { self.kill(token, "Bad login") }
+        }
+    }
+
+    fn client_message(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        match message {
+            Message::Say(msg) => {
+                let msg = self.find_connection_by_token(token).user.name.to_string() + ": " + &msg;
+                self.say_all(&msg, event_loop)
+            },
+            Message::Map(mapdata) => {
+                self.map = Map::from_json(&mapdata);
+                let new_json = self.map.as_json();
+                self.broadcast_message(&Message::Map(new_json), event_loop)
+            },
+            _ => Err(Error::new(ErrorKind::Other, "Unhandled Message"))
+        }
+    }
+
+    fn kill(&mut self, token: Token, message: &str) -> io::Result<()> {
+        self.send_message(token, &Message::Kill(message.to_string()));
+        Err(Error::new(ErrorKind::Other, "Killed Connection"))
+    }
+
+    /**
+     * Handling incoming message doing login if not handshaken else passing through to client_message
+     */
+    fn handle_message(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        if !self.find_connection_by_token(token).handshake_done {
+            self.find_connection_by_token(token).handshake_done = true;
+            self.handshake(token, message, event_loop)
+        } else {
+            self.client_message(token, message, event_loop)
+        }
+    }
+
+    fn is_message(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
+        let message = try!(self.find_connection_by_token(token).readable());
+        match from_utf8(&message) {
+            Ok(base_string) => {
+                let mut local_buffer_copy = (self.find_connection_by_token(token).buffer.to_string() + base_string).to_string();
+                while let Some((msg, remain)) = try!(next_io(&local_buffer_copy)) {
+                    try!(self.handle_message(token, msg, event_loop));
+                    local_buffer_copy = remain;
+                }
+                self.find_connection_by_token(token).buffer = local_buffer_copy;
+                Ok(())
+            },
+            Err(_) => Err(Error::new(ErrorKind::Other, "corrupted message could not be parsed as utf8"))
+        }
     }
 }

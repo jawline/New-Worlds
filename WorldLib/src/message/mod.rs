@@ -12,7 +12,6 @@ pub enum Message {
 }
 
 impl Message {
-
 	pub fn as_json(&self) -> String {
 		use rustc_serialize::json;
 		json::encode(&self).unwrap()
@@ -32,7 +31,7 @@ pub fn next(buf: &str) -> Result<Option<(Message, String)>, json::DecoderError> 
     	Some(idx) => {
 	        //Split remain_p to include the null terminator
 	        let (msg_p, next_p) = remain.split_at(idx);
-			println!("Parsing: {} with {} left", msg_p, next_p);
+			//println!("Parsing: {} with {} left", msg_p, next_p);
 			let r_remain = (&next_p[1..]).to_string();
 			if msg_p.trim().len() != 0 {
 				let new_msg = try!(Message::from_json(msg_p));

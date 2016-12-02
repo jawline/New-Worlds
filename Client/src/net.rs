@@ -25,9 +25,9 @@ impl Connection {
 
 	fn buffer_self(&mut self) -> io::Result<Vec<Message>> {
 		let mut buf: [u8; 4096] = [0; 4096];
-		let _size = try!(self.stream.read(&mut buf));
+		let size = try!(self.stream.read(&mut buf));
 
-		let fromutf = from_utf8(&buf);
+		let fromutf = from_utf8(&buf[0..size]);
 		if fromutf.is_err() {
 			Err(Error::new(ErrorKind::Other, "Error decoding buffered string"))
 		} else {

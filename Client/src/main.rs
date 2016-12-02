@@ -128,8 +128,10 @@ fn main() {
                     Some(ref mut map) => {
                         let (x, y) = map::get_elem(map, cursor, build_inverse(identity(), (x_off, y_off), scale));
                         println!("{} {}", x, y);
-                        let idx = map.idx(x,y);
-                        map.layers[0][idx].y = 1;
+                        if x < map.width && y < map.height {
+                            let idx = map.idx(x,y);
+                            map.layers[0][idx].y = 1;
+                        }
                         conn.send(&Message::Map(map.as_json()));
                     },
                     _ => {}
@@ -187,7 +189,7 @@ fn main() {
                 }
             }
         }) {
-            Err(e) => { println!("Fuck {:?}", e); },
+            Err(_) => { /* TODO: Conn error handling */ },
             _ => {}
         }
 
