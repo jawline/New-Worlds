@@ -1,9 +1,7 @@
 use connection::Connection;
 
-
 use std::io;
 use std::str::from_utf8;
-use std::usize;
 use std::io::{Error, ErrorKind};
 
 use world_lib::Map;
@@ -67,30 +65,62 @@ impl Handler for Server {
     }
 }
 
-impl Server {
-    pub fn current_zone_id(&mut self, token: Token) -> usize {
-        self.find_connection_by_token(token).user.current_zone
-    }
-}
+/**
+ * Sending u8 buffers logic
+ */
 
 impl Server {
-    fn send_buffer(&mut self, token: Token, buffer: Vec<u8>) {
+    fn send_buffer(&mut self, token: Token, buffer: &[u8]) {
         self.find_connection_by_token(token).send_message(buffer);
     }
 
+    fn send_all_buffer(&mut self, buffer: &[u8], event_loop: &mut EventLoop<Server>) {
+
+        let mut bad_connections = Vec::new();
+
+        for conn in self.conns.iter_mut() {
+            conn.send_message(buffer);
+            if conn.reregister(event_loop).is_err() {
+                bad_connections.push(conn.token);
+            }
+        }
+
+        for token in bad_connections {
+            self.reset_connection(event_loop, token);
+        }
+    }
+}
+
+/**
+ * Local for sending Message structs
+ */
+
+impl Server {
     fn send_message(&mut self, token: Token, message: &Message) {
-        self.send_buffer(token, (message.as_json() + "\0").as_bytes().to_vec())
+        self.send_buffer(token, (message.as_json() + "\0").as_bytes())
     }
 
+    fn broadcast_message(&mut self, message: &Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.send_all_buffer(format!("{}\0", message.as_json()).as_bytes(), event_loop);
+        Ok(())
+    }
+}
+
+/**
+ * Sending message logic
+ */
+
+impl Server {
     fn say(&mut self, token: Token, message: &str) {
         self.send_message(token, &Message::Say(message.to_string()))
     }
 
-    fn broadcast_message(&mut self, message: &Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        self.send_all(format!("{}\0", message.as_json()).as_bytes(), event_loop);
-        Ok(())
+    fn say_all(&mut self, msg: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.broadcast_message(&Message::Say(msg.to_string()), event_loop) 
     }
+}
 
+impl Server {
     fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
         println!("Accepted new connection");
     }
@@ -134,22 +164,6 @@ impl Server {
             let server_token = self.token;
             self.reset_connection(event_loop, server_token);
         })
-    }
-
-    fn send_all(&mut self, buffer: &[u8], event_loop: &mut EventLoop<Server>) {
-
-    	let mut bad_connections = Vec::new();
-
-        for conn in self.conns.iter_mut() {
-            conn.send_message(buffer.to_vec());
-            if conn.reregister(event_loop).is_err() {
-                bad_connections.push(conn.token);
-            }
-        }
-
-        for token in bad_connections {
-            self.reset_connection(event_loop, token);
-        }
     }
 
     fn grab_incoming(&mut self) -> Option<TcpStream> {
@@ -204,10 +218,6 @@ impl Server {
         self.find_connection_by_token(token).user.name.clone()
     }
 
-    fn say_all(&mut self, msg: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
-        self.broadcast_message(&Message::Say(msg.to_string()), event_loop) 
-    }
-
     fn handshake(&mut self, token: Token, message: Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
         match message {
             Message::Login(username, _) => {
@@ -252,7 +262,6 @@ impl Server {
 
     fn is_message(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         let message = try!(self.find_connection_by_token(token).readable());
-
         match from_utf8(&message) {
             Ok(base_string) => {
                 let mut local_buffer_copy = (self.find_connection_by_token(token).buffer.to_string() + base_string).to_string();

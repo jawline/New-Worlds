@@ -6,13 +6,8 @@ extern crate env_logger;
 extern crate rustc_serialize;
 
 mod user;
-mod zone;
-mod map;
 mod connection;
 mod server;
-pub mod help;
-
-use zone::Zone;
 
 use std::net::SocketAddr;
 use std::str::FromStr;

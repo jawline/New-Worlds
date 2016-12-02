@@ -84,8 +84,8 @@ impl Connection {
         self.sock.shutdown(Shutdown::Both)
     }
 
-    pub fn send_message(&mut self, message: Vec<u8>) {
-        self.send_queue.push(message);
+    pub fn send_message(&mut self, message: &[u8]) {
+        self.send_queue.push(message.to_vec());
         self.interest.insert(EventSet::writable());
     }
 
