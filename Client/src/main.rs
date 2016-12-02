@@ -178,9 +178,11 @@ fn main() {
         });
 
         match conn.update(|messages| {
-            println!("Message {:?}", messages);
             for message in messages {
                 match message {
+                    &Message::Say(ref text) => {
+                        println!("{}", text);
+                    },
                     &Message::Map(ref data) => {
                         println!("Loading map from MapData");
                         curmap = Some(Map::from_json(data));

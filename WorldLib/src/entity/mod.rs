@@ -1,29 +1,30 @@
-mod entity_type;
-
-pub use entity::entity_type::EntityType;
 use std::time::Duration;
-use position::Position;
+use math::Vec2d;
+
+pub enum EntityType {
+	Scene,
+	Character
+}
 
 pub struct Entity {
 	pub id: usize,
-	pub etype: EntityType,
-	pub position: Position
+	pub t: EntityType,
+	pub pos: Vec2d
 }
 
 impl Entity {
-	pub fn new(etype: EntityType, position: Position) -> Entity {
+	pub fn new(etype: EntityType, position: Vec2d) -> Entity {
 		unsafe {
 			static mut lid: usize = 0;
 			lid = lid + 1;
 			Entity {
 				id: lid,
-				etype: etype,
-				position: position
+				t: etype,
+				pos: position
 			}
 		}
 	}
 
 	pub fn update(&mut self, time: Duration) {
-		println!("Ticked Entity");
 	}
 }
