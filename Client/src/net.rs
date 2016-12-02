@@ -1,36 +1,72 @@
 use std::net::TcpStream;
 use std::io::{Read, Write};
-use world_lib::Message;
+use world_lib::message::{Message, next};
+use std::io;
+use std::str::from_utf8;
+use std::io::{Error, ErrorKind};
 
 pub struct Connection {
-	pub stream: TcpStream
+	pub stream: TcpStream,
+	buffer: String
 }
 
 impl Connection {
 
-	fn consume_ack(stream: &mut TcpStream) {
-		let mut buf = [0; 8096];
-		while stream.read(&mut buf).is_err() {}
+	fn handle_buffer(&mut self) -> io::Result<Vec<Message>> {
+		let mut buffer = Vec::new();
+
+		'buffer: loop {
+			println!("Test");
+			match next(&self.buffer) {
+				Ok((Some(m), remain)) => {
+					self.buffer = remain;
+					buffer.push(m);
+					println!("Some");
+				},
+				Err(e) => {
+					println!("DecoderError {:?}", e);
+					return Err(Error::new(ErrorKind::Other, "DecoderError in received message"));
+				},
+				_ => break 'buffer
+			};
+		}
+
+		println!("Exited");
+
+		Ok(buffer)
 	}
 
-	pub fn connect(server: &str, username: &str) -> Connection {
-		let mut stream = TcpStream::connect(server).unwrap();
+	fn buffer_self(&mut self) -> io::Result<Vec<Message>> {
+		let mut buf: [u8; 4096] = [0; 4096];
+		let _size = try!(self.stream.read(&mut buf));
+
+		let fromutf = from_utf8(&buf);
+		if fromutf.is_err() {
+			Err(Error::new(ErrorKind::Other, "Error decoding buffered string"))
+		} else {
+			println!("FromUTF: {}", fromutf.unwrap());
+			self.buffer = self.buffer.to_string() + &fromutf.unwrap();
+			self.handle_buffer()
+		}
+	}
+
+	pub fn update<T>(&mut self, callback: T) -> io::Result<()> where T: FnOnce(&Vec<Message>) -> () {
+		let messages = try!(self.buffer_self());
+		println!("Messages {:?}", messages);
+		callback(&messages);
+		Ok(())
+	}
+
+	pub fn login(&mut self, username: &str, password: &str) {
+		write!(self.stream, "{}\0", Message::Login(username.to_string(), password.to_string()).as_json());
+	}
+
+	pub fn connect(server: &str) -> Connection {
+		let stream = TcpStream::connect(server).unwrap();
 		stream.set_nonblocking(true);
-		write!(stream, "{}\0", Message::Login(username.to_string(), "test".to_string()).as_json());
-
-		Connection::consume_ack(&mut stream);
-
-		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
-
-		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
-
-		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
-
-		write!(stream, "{}\0", Message::Say("Hi".to_string()).as_json());
-
-
 		Connection {
-			stream: stream
+			stream: stream,
+			buffer: "".to_string()
 		}
 	}
 }

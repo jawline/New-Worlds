@@ -1,7 +1,7 @@
 use conrod;
 use ui::Ids;
 
-pub fn build_login<F>(ref mut ui: conrod::UiCell, ids: &Ids, username: &mut String, logged_in: F) where F: FnOnce() -> () {
+pub fn build_login<F>(ref mut ui: conrod::UiCell, ids: &Ids, username: &mut String, mut logged_in: F) where F: FnMut(&str) -> () {
     use conrod::{color, Labelable, widget, Colorable, Positionable, Scalar, Sizeable, Widget};
 
         // Our `Canvas` tree, upon which we will place our text widgets.
@@ -39,6 +39,6 @@ pub fn build_login<F>(ref mut ui: conrod::UiCell, ids: &Ids, username: &mut Stri
             .set(ids.username_done_block, ui)
             .was_clicked()
             {
-                logged_in();
+                logged_in(username);
             }
 }

@@ -15,13 +15,14 @@ mod assets;
 mod map;
 mod net;
 
-use map::Map;
+use map::{Map};
 use login::*;
 use graphics::math::{identity, Matrix2d};
 
 use conrod::backend::piston::{self, Window, WindowEvents, OpenGL};
 use conrod::backend::piston::event::{UpdateEvent};
 use piston_window::{PressEvent, MouseCursorEvent, MouseButton, clear, ReleaseEvent, Button, Key, G2d, Transformed};
+use world_lib::message::Message;
 
 const WIDTH: u32 = 1080;
 const HEIGHT: u32 = 720;
@@ -48,7 +49,6 @@ fn main() {
     let mut logged_in = false;
 
     let tiles = tileset::Tileset::new(&mut window, &assets::tiles(), "grass");
-    let mut map = Map::new(16, 64);
 
     let mut x_off = 0.0;
     let mut y_off = 0.0;
@@ -61,8 +61,9 @@ fn main() {
     let mut zoom_out = false;
     let mut scale = 1.0;
     let mut cursor = (0.0, 0.0);
-
-    let mut conn = None;
+    
+    let mut curmap = None;
+    let mut conn = net::Connection::connect("127.0.0.1:15340");
 
     fn build_transform(initial: Matrix2d, (x_off, y_off): (f64, f64), scale: f64) -> Matrix2d {
         initial.scale(scale, scale).trans(-x_off, -y_off)
@@ -121,12 +122,12 @@ fn main() {
                 zoom_out = false;
             }
 
-            if button == Button::Mouse(MouseButton::Left) {
-                let (x, y) = map.get_elem(cursor, build_inverse(identity(), (x_off, y_off), scale));
+            /*if button == Button::Mouse(MouseButton::Left) {
+                let (x, y) = map::get_elem(&curmap, cursor, build_inverse(identity(), (x_off, y_off), scale));
                 println!("{} {}", x, y);
-                let idx = map.idx(x,y);
-                map.layers[0][idx].y = 1;
-            }
+                let idx = curmap.idx(x,y);
+                curmap.layers[0][idx].y = 1;
+            }*/
         }
 
         if l_press {
@@ -158,32 +159,51 @@ fn main() {
 
         event.update(|_| {
         	if !logged_in {
-        		build_login(ui.set_widgets(), &ids, &mut user, || {
+        		build_login(ui.set_widgets(), &ids, &mut user, |username| {
                     logged_in = true;
-                    conn = Some(net::Connection::connect("127.0.0.1:15340", "jawline"))
+                    conn.login(username, "test");
                 });
         	} else {
         		noui::no_ui(ui.set_widgets(), &ids);
         	}
         });
 
+        conn.update(|messages| {
+            for message in messages {
+                println!("Message Message Message");
+                match message {
+                    &Message::Map(ref data) => {
+                        curmap = Some(Map::from_json(data));
+                    },
+                    _ => {}
+                }
+            }
+        });
+
         window.draw_2d(&event, |c, g: &mut G2d| {
 
             clear([0.0,0.0,0.0,0.0], g);
 
-            map.draw(&tiles, build_transform(c.transform, (x_off, y_off), scale), g);
-
-          if let Some(primitives) = ui.draw_if_changed() {
-                fn texture_from_image<T>(img: &T) -> &T { img };
-                piston::window::draw(c, g, primitives,
-              		&mut text_texture_cache,
-                    &image_map,
-                    texture_from_image);
+            match curmap {
+                Some(ref map) => {
+                    map::draw(map, &tiles, build_transform(c.transform, (x_off, y_off), scale), g);
+                },
+                None => { /* No map to draw */ }
             }
 
-            ui.needs_redraw();
+            if !logged_in {
+                if let Some(primitives) = ui.draw_if_changed() {
+                    fn texture_from_image<T>(img: &T) -> &T { img };
+                    piston::window::draw(c, g, primitives,
+                  		&mut text_texture_cache,
+                        &image_map,
+                        texture_from_image);
+                }
 
-            //std::thread::sleep(std::time::Duration::from_millis(5))
+                ui.needs_redraw();
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(1))
         });
     }
 

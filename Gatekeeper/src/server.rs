@@ -1,7 +1,5 @@
 use connection::Connection;
 
-use map::Map;
-
 use help;
 
 use std::io;
@@ -10,7 +8,8 @@ use std::str::FromStr;
 use std::usize;
 use std::io::{Error, ErrorKind};
 
-use world_lib::Message;
+use world_lib::Map;
+use world_lib::message::Message;
 
 use mio::*;
 use mio::tcp::*;
@@ -74,16 +73,6 @@ impl Server {
     pub fn current_zone_id(&mut self, token: Token) -> usize {
         self.find_connection_by_token(token).user.current_zone
     }
-
-    pub fn current_zone(&mut self, token: Token) -> String {
-        let current_zone_id = self.current_zone_id(token);
-        self.map.zones[current_zone_id].name.clone()
-    }
-
-    pub fn zone_description(&mut self, token: Token) -> String {
-        let current_zone_id = self.current_zone_id(token);
-        self.map.zones[current_zone_id].desc.clone()
-    }
 }
 
 impl Server {
@@ -91,12 +80,12 @@ impl Server {
         self.find_connection_by_token(token).send_message(buffer);
     }
 
-    fn send_message(&mut self, token: Token, message: &str) {
-        self.send_buffer(token, message.as_bytes().to_vec())
+    fn send_message(&mut self, token: Token, message: &Message) {
+        self.send_buffer(token, (message.as_json() + "\0").as_bytes().to_vec())
     }
 
     fn say(&mut self, token: Token, message: &str) {
-        self.send_message(token, &(Message::Say(message.to_string()).as_json() + "\0"))
+        self.send_message(token, &Message::Say(message.to_string()))
     }
 
     fn broadcast_message(&mut self, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
@@ -106,12 +95,6 @@ impl Server {
 
     fn new_connection_accepted(&mut self, _: &mut EventLoop<Server>, _: Token) {
         println!("Accepted new connection");
-    }
-
-    fn send_welcome(&mut self, token: Token) {
-        let current_zone = &self.current_zone(token);
-        let description = &self.zone_description(token);
-        self.send_message(token, &("You find yourself in ".to_string() + current_zone + ", " + description + "\n"));
     }
 
     fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) -> io::Result<()> {
@@ -199,9 +182,7 @@ impl Server {
 
         let sock = sock.unwrap();
 
-        let start_zone = self.map.start_zone;
-
-        match self.conns.insert_with(|token| Connection::new(sock, token, start_zone)) {
+        match self.conns.insert_with(|token| Connection::new(sock, token)) {
             Some(token) => {
                 match self.find_connection_by_token(token).register(event_loop) {
                     Ok(_) => {
@@ -233,7 +214,9 @@ impl Server {
         match Message::from_json(message) {
             Ok(Message::Login(username, _)) => {
                 self.find_connection_by_token(token).user.set_name(&username);
-                self.send_welcome(token);
+                let map_json = self.map.as_json();
+                println!("Sending JSON");
+                self.send_message(token, &Message::Map(map_json));
                 self.say_all(&format!("{} has joined the server", username), event_loop)
             },
             _ => { self.kill(token, "Bad login") }
@@ -251,7 +234,7 @@ impl Server {
     }
 
     fn kill(&mut self, token: Token, message: &str) -> io::Result<()> {
-        self.send_message(token, &Message::Kill(message.to_string()).as_json());
+        self.send_message(token, &Message::Kill(message.to_string()));
         Err(Error::new(ErrorKind::Other, "Killed Connection"))
     }
 

@@ -1,4 +1,5 @@
 use zone::Zone;
+use rustc_serialize::json;
 
 pub struct Map {
 	pub name: String,

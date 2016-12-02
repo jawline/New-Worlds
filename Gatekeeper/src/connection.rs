@@ -20,9 +20,9 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(sock: TcpStream, token: Token, zone: usize) -> Connection {
+    pub fn new(sock: TcpStream, token: Token) -> Connection {
         Connection {
-            user: User::load("Anon", zone),
+            user: User::load("Anon", 0),
             sock: sock,
             token: token,
             interest: EventSet::hup(),
