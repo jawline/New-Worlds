@@ -16,22 +16,17 @@ impl Connection {
 		let mut buffer = Vec::new();
 
 		'buffer: loop {
-			println!("Test");
 			match next(&self.buffer) {
 				Ok((Some(m), remain)) => {
 					self.buffer = remain;
 					buffer.push(m);
-					println!("Some");
 				},
 				Err(e) => {
-					println!("DecoderError {:?}", e);
-					return Err(Error::new(ErrorKind::Other, "DecoderError in received message"));
+					return Err(Error::new(ErrorKind::Other, format!("DecoderError {:?} in received message", e)));
 				},
 				_ => break 'buffer
 			};
 		}
-
-		println!("Exited");
 
 		Ok(buffer)
 	}
