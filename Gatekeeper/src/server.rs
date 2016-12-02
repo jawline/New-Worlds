@@ -1,11 +1,10 @@
 use connection::Connection;
 
 use std::io;
-use std::str::from_utf8;
 use std::io::{Error, ErrorKind};
 
 use world_lib::Map;
-use world_lib::message::{next_io, Message};
+use world_lib::message::{next, Message};
 
 use mio::*;
 use mio::tcp::*;
@@ -315,17 +314,14 @@ impl Server {
 
     fn is_message(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         let message = try!(self.find_connection_by_token(token).readable());
-        match from_utf8(&message) {
-            Ok(base_string) => {
-                let mut local_buffer_copy = (self.find_connection_by_token(token).buffer.to_string() + base_string).to_string();
-                while let Some((msg, remain)) = try!(next_io(&local_buffer_copy)) {
-                    try!(self.handle_message(token, msg, event_loop));
-                    local_buffer_copy = remain;
-                }
-                self.find_connection_by_token(token).buffer = local_buffer_copy;
-                Ok(())
-            },
-            Err(_) => Err(Error::new(ErrorKind::Other, "corrupted message could not be parsed as utf8"))
+
+        let mut local_buffer_copy = self.find_connection_by_token(token).buffer.iter().cloned().chain(message).collect();
+        while let Some((msg, remain)) = try!(next(&local_buffer_copy)) {
+            try!(self.handle_message(token, msg, event_loop));
+            local_buffer_copy = remain;
         }
+        
+        self.find_connection_by_token(token).buffer = local_buffer_copy;
+        Ok(())
     }
 }

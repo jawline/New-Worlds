@@ -1,6 +1,9 @@
 use rustc_serialize::json;
 use std::io;
-use std::io::{Error, ErrorKind};
+use std::result::Result;
+use std::error::Error;
+use std::str::from_utf8;
+use utils::to_io;
 
 #[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub enum Message {
@@ -22,34 +25,25 @@ impl Message {
 	}
 }
 
-pub fn next(buf: &str) -> Result<Option<(Message, String)>, json::DecoderError> {
+pub fn next(buf: &Vec<u8>) -> io::Result<Option<(Message, Vec<u8>)>> {
 
-	let remain = buf.to_string();
+	let remain = buf.to_vec();
 
 	//Find the null terminator that splits messages
-    match buf.find("\0") {
+    match buf.iter().position(|&x| x == 0) {
     	Some(idx) => {
 	        //Split remain_p to include the null terminator
 	        let (msg_p, next_p) = remain.split_at(idx);
-			//println!("Parsing: {} with {} left", msg_p, next_p);
-			let r_remain = (&next_p[1..]).to_string();
-			if msg_p.trim().len() != 0 {
-				let new_msg = try!(Message::from_json(msg_p));
-				Ok(Some((new_msg, r_remain)))
-	    	} else {
+			let r_remain = &next_p[1..];
+
+			let text = try!(to_io(from_utf8(msg_p))).trim();
+			if text.len() != 0 {
+				let new_msg = try!(to_io(Message::from_json(text.trim())));
+				Ok(Some((new_msg, r_remain.to_vec())))
+			} else {
 				Ok(None)
-	    	}
+			}
 	   	},
 	   	_ => Ok(None)
-	}
-}
-
-/**
- * Return the error as an IO error to make error handling simpler
- */
-pub fn next_io(buf: &str) -> io::Result<Option<(Message, String)>> {
-	match next(buf) {
-		Ok(x) => Ok(x),
-		Err(e) => Err(Error::new(ErrorKind::Other, format!("JSON message decoding error {:?}", e)))
 	}
 }

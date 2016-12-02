@@ -13,7 +13,7 @@ pub struct Connection {
     pub user: User,
     pub handshake_done: bool,
     pub token: Token,
-    pub buffer: String,
+    pub buffer: Vec<u8>,
     sock: TcpStream,
     interest: EventSet,
     send_queue: Vec<Vec<u8>>,
@@ -27,7 +27,7 @@ impl Connection {
             token: token,
             interest: EventSet::hup(),
             send_queue: Vec::new(),
-            buffer: "".to_string(),
+            buffer: Vec::new(),
             handshake_done: false
         }
     }

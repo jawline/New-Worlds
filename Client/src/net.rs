@@ -1,13 +1,11 @@
 use std::net::TcpStream;
 use std::io::{Read, Write};
-use world_lib::message::{Message, next_io};
+use world_lib::message::{Message, next};
 use std::io;
-use std::str::from_utf8;
-use std::io::{Error, ErrorKind};
 
 pub struct Connection {
 	pub stream: TcpStream,
-	buffer: String
+	buffer: Vec<u8>
 }
 
 impl Connection {
@@ -15,7 +13,7 @@ impl Connection {
 	fn handle_buffer(&mut self) -> io::Result<Vec<Message>> {
 		let mut buffer = Vec::new();
 
-		while let Some((msg, remain)) = try!(next_io(&self.buffer)) {
+		while let Some((msg, remain)) = try!(next(&self.buffer)) {
 			buffer.push(msg);
 			self.buffer = remain;
 		}
@@ -26,15 +24,8 @@ impl Connection {
 	fn buffer_self(&mut self) -> io::Result<Vec<Message>> {
 		let mut buf: [u8; 4096] = [0; 4096];
 		let size = try!(self.stream.read(&mut buf));
-
-		let fromutf = from_utf8(&buf[0..size]);
-		if fromutf.is_err() {
-			Err(Error::new(ErrorKind::Other, "Error decoding buffered string"))
-		} else {
-			println!("FromUTF: {}", fromutf.unwrap());
-			self.buffer = self.buffer.to_string() + &fromutf.unwrap();
-			self.handle_buffer()
-		}
+		self.buffer = self.buffer.iter().chain(&buf[0..size]).map(|&x| x).collect();
+		self.handle_buffer()
 	}
 
 	pub fn update<T>(&mut self, callback: T) -> io::Result<()> where T: FnOnce(&Vec<Message>) -> () {
@@ -56,7 +47,7 @@ impl Connection {
 		stream.set_nonblocking(true);
 		Connection {
 			stream: stream,
-			buffer: "".to_string()
+			buffer: Vec::new()
 		}
 	}
 }
