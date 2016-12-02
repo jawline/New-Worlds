@@ -1,6 +1,6 @@
 use std::net::TcpStream;
 use std::io::{Read, Write};
-use world_lib::message::{Message, next};
+use world_lib::message::{Message, next_io};
 use std::io;
 use std::str::from_utf8;
 use std::io::{Error, ErrorKind};
@@ -15,17 +15,9 @@ impl Connection {
 	fn handle_buffer(&mut self) -> io::Result<Vec<Message>> {
 		let mut buffer = Vec::new();
 
-		'buffer: loop {
-			match next(&self.buffer) {
-				Ok((Some(m), remain)) => {
-					self.buffer = remain;
-					buffer.push(m);
-				},
-				Err(e) => {
-					return Err(Error::new(ErrorKind::Other, format!("DecoderError {:?} in received message", e)));
-				},
-				_ => break 'buffer
-			};
+		while let Some((msg, remain)) = try!(next_io(&self.buffer)) {
+			buffer.push(msg);
+			self.buffer = remain;
 		}
 
 		Ok(buffer)
@@ -47,13 +39,16 @@ impl Connection {
 
 	pub fn update<T>(&mut self, callback: T) -> io::Result<()> where T: FnOnce(&Vec<Message>) -> () {
 		let messages = try!(self.buffer_self());
-		println!("Messages {:?}", messages);
 		callback(&messages);
 		Ok(())
 	}
 
-	pub fn login(&mut self, username: &str, password: &str) {
-		write!(self.stream, "{}\0", Message::Login(username.to_string(), password.to_string()).as_json());
+	pub fn send(&mut self, message: &Message) -> io::Result<()> {
+		write!(self.stream, "{}\0", message.as_json())
+	}
+
+	pub fn login(&mut self, username: &str, password: &str) -> io::Result<()> {
+		self.send(&Message::Login(username.to_string(), password.to_string()))
 	}
 
 	pub fn connect(server: &str) -> Connection {

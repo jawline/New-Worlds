@@ -1,5 +1,6 @@
 use rustc_serialize::json;
-use std::vec::Vec;
+use std::io;
+use std::io::{Error, ErrorKind};
 
 #[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub enum Message {
@@ -22,7 +23,7 @@ impl Message {
 	}
 }
 
-pub fn next(buf: &str) -> Result<(Option<Message>, String), json::DecoderError> {
+pub fn next(buf: &str) -> Result<Option<(Message, String)>, json::DecoderError> {
 
 	let remain = buf.to_string();
 
@@ -34,11 +35,22 @@ pub fn next(buf: &str) -> Result<(Option<Message>, String), json::DecoderError> 
 			println!("Parsing: {} with {} left", msg_p, next_p);
 			let r_remain = (&next_p[1..]).to_string();
 			if msg_p.trim().len() != 0 {
-	    	    Ok((Some(try!(Message::from_json(msg_p))), r_remain))
+				let new_msg = try!(Message::from_json(msg_p));
+				Ok(Some((new_msg, r_remain)))
 	    	} else {
-				Ok((None, r_remain))
+				Ok(None)
 	    	}
 	   	},
-	   	_ => Ok((None, remain))
+	   	_ => Ok(None)
+	}
+}
+
+/**
+ * Return the error as an IO error to make error handling simpler
+ */
+pub fn next_io(buf: &str) -> io::Result<Option<(Message, String)>> {
+	match next(buf) {
+		Ok(x) => Ok(x),
+		Err(e) => Err(Error::new(ErrorKind::Other, format!("JSON message decoding error {:?}", e)))
 	}
 }

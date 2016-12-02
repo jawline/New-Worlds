@@ -62,7 +62,7 @@ fn main() {
     let mut scale = 1.0;
     let mut cursor = (0.0, 0.0);
     
-    let mut curmap = None;
+    let mut curmap: Option<Map> = None;
     let mut conn = net::Connection::connect("127.0.0.1:15340");
 
     fn build_transform(initial: Matrix2d, (x_off, y_off): (f64, f64), scale: f64) -> Matrix2d {
@@ -122,12 +122,19 @@ fn main() {
                 zoom_out = false;
             }
 
-            /*if button == Button::Mouse(MouseButton::Left) {
-                let (x, y) = map::get_elem(&curmap, cursor, build_inverse(identity(), (x_off, y_off), scale));
-                println!("{} {}", x, y);
-                let idx = curmap.idx(x,y);
-                curmap.layers[0][idx].y = 1;
-            }*/
+            if button == Button::Mouse(MouseButton::Left) {
+
+                match curmap {
+                    Some(ref mut map) => {
+                        let (x, y) = map::get_elem(map, cursor, build_inverse(identity(), (x_off, y_off), scale));
+                        println!("{} {}", x, y);
+                        let idx = map.idx(x,y);
+                        map.layers[0][idx].y = 1;
+                        conn.send(&Message::Map(map.as_json()));
+                    },
+                    _ => {}
+                }
+            }
         }
 
         if l_press {
@@ -168,17 +175,21 @@ fn main() {
         	}
         });
 
-        conn.update(|messages| {
+        match conn.update(|messages| {
+            println!("Message {:?}", messages);
             for message in messages {
-                println!("Message Message Message");
                 match message {
                     &Message::Map(ref data) => {
+                        println!("Loading map from MapData");
                         curmap = Some(Map::from_json(data));
                     },
                     _ => {}
                 }
             }
-        });
+        }) {
+            Err(e) => { println!("Fuck {:?}", e); },
+            _ => {}
+        }
 
         window.draw_2d(&event, |c, g: &mut G2d| {
 
