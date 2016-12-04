@@ -5,6 +5,7 @@ use std::io::{Error, ErrorKind};
 
 use world_lib::{Map, World};
 use world_lib::message::{next, Message};
+use world_lib::entity::{Entity, EntityID, EntityType};
 
 use mio::*;
 use mio::tcp::*;
@@ -156,6 +157,10 @@ impl Server {
         self.find_connection_by_token(token).user.name.clone()
     }
 
+    fn entity_id(&mut self, token: Token) -> EntityID {
+        self.find_connection_by_token(token).entity
+    }
+
     fn read_from_connection(&mut self, event_loop: &mut EventLoop<Server>, token: Token) -> io::Result<()> {
         println!("server conn readable; token={:?}", token);
         self.is_message(event_loop, token)
@@ -177,12 +182,11 @@ impl Server {
                 println!("could not shutdown TcpStream before a reset");
             }
 
-            let name = self.user_name(token);
-            self.conns.remove(token);
-
-            if self.handle_user_leaving(event_loop, &name).is_err() {
+            if self.handle_user_leaving(token, event_loop).is_err() {
                 println!("Error handling user leave");
             }
+
+            self.conns.remove(token);
         }
     }
 
@@ -196,8 +200,11 @@ impl Server {
  */
 
 impl Server {
-    fn send_buffer(&mut self, token: Token, buffer: &[u8]) {
+    fn send_buffer(&mut self, token: Token, buffer: &[u8], event_loop: &mut EventLoop<Server>) {
         self.find_connection_by_token(token).send_message(buffer);
+        if self.find_connection_by_token(token).reregister(event_loop).is_err() {
+            self.reset_connection(event_loop, token)
+        }
     }
 
     fn send_all_buffer(&mut self, buffer: &[u8], event_loop: &mut EventLoop<Server>) {
@@ -222,8 +229,8 @@ impl Server {
  */
 
 impl Server {
-    fn send_message(&mut self, token: Token, message: &Message) {
-        self.send_buffer(token, (message.as_json() + "\0").as_bytes())
+    fn send_message(&mut self, token: Token, message: &Message, event_loop: &mut EventLoop<Server>) {
+        self.send_buffer(token, (message.as_json() + "\0").as_bytes(), event_loop)
     }
 
     fn broadcast_message(&mut self, message: &Message, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
@@ -237,8 +244,8 @@ impl Server {
  */
 
 impl Server {
-    fn say(&mut self, token: Token, message: &str) {
-        self.send_message(token, &Message::Say(message.to_string()))
+    fn say(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) {
+        self.send_message(token, &Message::Say(message.to_string()), event_loop)
     }
 
     fn say_all(&mut self, msg: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
@@ -254,8 +261,11 @@ impl Server {
         println!("Accepted new connection");
     }
 
-    fn handle_user_leaving(&mut self, event_loop: &mut EventLoop<Server>, name: &str) -> io::Result<()> {
-        self.say_all(&(name.to_string() + " dissolved away"), event_loop)
+    fn handle_user_leaving(&mut self, token: Token, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        let name = self.user_name(token);
+        let eid = self.entity_id(token);
+        try!(self.say_all(&(name + " dissolved away"), event_loop));
+        self.remove_entity(eid, event_loop)
     }
 }
 
@@ -272,11 +282,13 @@ impl Server {
         match message {
             Message::Login(username, _) => {
                 self.find_connection_by_token(token).user.set_name(&username);
-                let world_json = self.world.as_json();
-                self.send_message(token, &Message::World(world_json));
-                self.say_all(&format!("{} has joined the server", username), event_loop)
+                try!(self.update_world_personal(token, event_loop));
+                try!(self.say_all(&format!("{} has joined the server", username), event_loop));
+                let player_ent = Server::default_entity();
+                self.find_connection_by_token(token).entity = player_ent.id;
+                self.update_or_insert(&player_ent, event_loop)
             },
-            _ => { self.kill(token, "Bad login") }
+            _ => { self.kill(token, "Bad login", event_loop) }
         }
     }
 
@@ -288,15 +300,14 @@ impl Server {
             },
             Message::Map(mapdata) => {
                 self.world.map = Map::from_json(&mapdata);
-                let new_json = self.world.map.as_json();
-                self.broadcast_message(&Message::Map(new_json), event_loop)
+                self.update_world(event_loop)
             },
             _ => Err(Error::new(ErrorKind::Other, "Unhandled Message"))
         }
     }
 
-    fn kill(&mut self, token: Token, message: &str) -> io::Result<()> {
-        self.send_message(token, &Message::Kill(message.to_string()));
+    fn kill(&mut self, token: Token, message: &str, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.send_message(token, &Message::Kill(message.to_string()), event_loop);
         Err(Error::new(ErrorKind::Other, "Killed Connection"))
     }
 
@@ -323,5 +334,39 @@ impl Server {
         
         self.find_connection_by_token(token).buffer = local_buffer_copy;
         Ok(())
+    }
+}
+
+/**
+ * Entity creation and update logic
+ */
+impl Server {
+    fn default_entity() -> Entity {
+        Entity::new(EntityType::Character, (30.0, 30.0), (32.0, 32.0))
+    }
+
+    fn world_message(&self) -> Message {
+        Message::World(self.world.as_json())
+    }
+
+    pub fn update_world(&mut self, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        let msg = self.world_message();
+        self.broadcast_message(&msg, event_loop)
+    }
+
+    pub fn update_world_personal(&mut self, token: Token, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        let msg = self.world_message();
+        self.send_message(token, &msg, event_loop);
+        Ok(())
+    }
+
+    pub fn update_or_insert(&mut self, entity: &Entity, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.world.update_or_insert(entity);
+        self.broadcast_message(&Message::Entity(entity.as_json()), event_loop)
+    }
+
+    pub fn remove_entity(&mut self, entity: EntityID, event_loop: &mut EventLoop<Server>) -> io::Result<()> {
+        self.world.remove(entity);
+        self.broadcast_message(&Message::RemoveEntity(entity), event_loop)
     }
 }

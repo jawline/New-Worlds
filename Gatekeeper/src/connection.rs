@@ -4,9 +4,9 @@ use mio::tcp::*;
 use std::io::Result;
 use std::io::{Read, Write};
 use std::io::{Error, ErrorKind};
-
+use std::collections::VecDeque;
 use user::User;
-
+use world_lib::entity::{null_id, EntityID};
 use server::Server;
 
 pub struct Connection {
@@ -14,9 +14,10 @@ pub struct Connection {
     pub handshake_done: bool,
     pub token: Token,
     pub buffer: Vec<u8>,
+    pub entity: EntityID,
     sock: TcpStream,
     interest: EventSet,
-    send_queue: Vec<Vec<u8>>,
+    send_queue: VecDeque<Vec<u8>>,
 }
 
 impl Connection {
@@ -26,9 +27,10 @@ impl Connection {
             sock: sock,
             token: token,
             interest: EventSet::hup(),
-            send_queue: Vec::new(),
+            send_queue: VecDeque::new(),
             buffer: Vec::new(),
-            handshake_done: false
+            handshake_done: false,
+            entity: null_id()
         }
     }
 
@@ -48,7 +50,7 @@ impl Connection {
     }
 
     pub fn write_one(&mut self) -> Result<()> {
-        try!(self.send_queue.pop()
+        try!(self.send_queue.pop_front()
             .ok_or(Error::new(ErrorKind::Other, "Could not pop send queue"))
             .and_then(|buf| {
                 match self.sock.write(&buf) {
@@ -85,7 +87,7 @@ impl Connection {
     }
 
     pub fn send_message(&mut self, message: &[u8]) {
-        self.send_queue.push(message.to_vec());
+        self.send_queue.push_back(message.to_vec());
         self.interest.insert(EventSet::writable());
     }
 

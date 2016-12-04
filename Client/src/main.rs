@@ -25,6 +25,7 @@ use conrod::backend::piston::event::{UpdateEvent};
 use piston_window::{Texture, Flip, G2dTexture, TextureSettings};
 use piston_window::{PressEvent, MouseCursorEvent, MouseButton, clear, ReleaseEvent, Button, Key, G2d, Transformed};
 use world_lib::message::Message;
+use world_lib::entity::Entity;
 
 const WIDTH: u32 = 1080;
 const HEIGHT: u32 = 720;
@@ -188,6 +189,20 @@ fn main() {
                     &Message::World(ref data) => {
                         println!("Loading world from WorldData");
                         world = Some(World::from_json(data));
+                    },
+                    &Message::Entity(ref data) => {
+                        println!("Received Entity Data");
+                        let entity = Entity::from_json(data);
+                        if let Some(ref mut world) = world {
+                            println!("Updating Entity {:?}", entity);
+                            world.update_or_insert(&entity);
+                        }
+                    },
+                    &Message::RemoveEntity(id) => {
+                        println!("Removing Entity Request");
+                        if let Some(ref mut world) = world {
+                            world.remove(id);
+                        }
                     },
                     _ => {}
                 }

@@ -1,5 +1,5 @@
 use rustc_serialize::json;
-use entity::Entity;
+use entity::{Entity, EntityID};
 use map::Map;
 use std::time::Duration;
 
@@ -15,6 +15,20 @@ impl World {
 		World {
 			entities: Vec::new(),
 			map: map
+		}
+	}
+
+	pub fn update_or_insert(&mut self, entity: &Entity) {
+		if let Some(pos) = self.entities.iter().position(|x| x.id == entity.id) {
+			self.entities[pos] = entity.clone();
+		} else {
+			self.entities.push(entity.clone());
+		}
+	}
+
+	pub fn remove(&mut self, id: EntityID) {
+		if let Some(pos) = self.entities.iter().position(|x| x.id == id) {
+			self.entities.remove(pos);
 		}
 	}
 

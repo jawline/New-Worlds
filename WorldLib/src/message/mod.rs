@@ -3,7 +3,7 @@ use std::io;
 use std::result::Result;
 use std::str::from_utf8;
 use utils::to_io;
-use world::World;
+use entity::EntityID;
 
 #[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub enum Message {
@@ -11,7 +11,9 @@ pub enum Message {
 	Say(String),
 	Kill(String),
 	Map(String),
-	World(String)
+	World(String),
+	Entity(String),
+	RemoveEntity(EntityID),
 }
 
 impl Message {
@@ -30,7 +32,7 @@ pub fn next(buf: &Vec<u8>) -> io::Result<Option<(Message, Vec<u8>)>> {
 	//Find the null terminator that splits messages
     match buf.iter().position(|&x| x == 0) {
     	Some(idx) => {
-	        
+
 	        //Split remain_p to include the null terminator
 	        let (msg_p, next_p) = buf.split_at(idx);
 			let r_remain = &next_p[1..];
