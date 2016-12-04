@@ -1,14 +1,20 @@
+use rustc_serialize::json;
 use entity::Entity;
+use map::Map;
 use std::time::Duration;
 
+#[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
 pub struct World {
-	entities: Vec<Entity>
+	pub map: Map,
+	pub entities: Vec<Entity>
 }
 
 impl World {
-	pub fn new() -> World {
+
+	pub fn new(map: Map) -> World {
 		World {
-			entities: Vec::new()
+			entities: Vec::new(),
+			map: map
 		}
 	}
 
@@ -18,7 +24,11 @@ impl World {
 		}
 	}
 
-	pub fn serialize(&self) -> String {
-		"none".to_string()
+	pub fn from_json(t: &str) -> World {
+		json::decode(t).unwrap()
+	}
+
+	pub fn as_json(&self) -> String {
+		json::encode(self).unwrap()
 	}
 }

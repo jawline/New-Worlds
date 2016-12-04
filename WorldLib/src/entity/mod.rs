@@ -1,11 +1,13 @@
 use std::time::Duration;
 use math::Vec2d;
 
+#[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub enum EntityType {
 	Scene,
 	Character
 }
 
+#[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub struct Entity {
 	pub id: usize,
 	pub t: EntityType,
@@ -25,6 +27,5 @@ impl Entity {
 		}
 	}
 
-	pub fn update(&mut self, time: Duration) {
-	}
+	pub fn update(&mut self, time: Duration) {}
 }

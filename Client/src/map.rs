@@ -3,7 +3,7 @@ use graphics::{Image};
 use graphics::math::Matrix2d;
 use conrod::backend::piston::gfx::{Transformed, G2d};
 use std::default::Default;
-pub use world_lib::Map;
+pub use world_lib::{World, Map};
 
 pub fn draw(map: &Map, tiles: &Tileset, trans: Matrix2d, g: &mut G2d) {
 	let image = Image::new().rect([0.0, 0.0, 64.0, 32.0]);

@@ -1,3 +1,4 @@
+#[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub struct Vec2d {
 	pub x: f64,
 	pub y: f64

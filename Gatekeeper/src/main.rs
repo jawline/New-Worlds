@@ -17,7 +17,9 @@ use mio::tcp::*;
 
 use server::Server;
 
-use world_lib::Map;
+use world_lib::{World, Map};
+use world_lib::entity::{Entity, EntityType};
+use world_lib::math::Vec2d;
 
 fn main() {
 
@@ -30,7 +32,13 @@ fn main() {
 
     let mut event_loop = EventLoop::new().ok().expect("Failed to create event loop");
 
-    let mut server = Server::new(sock, Map::new(16, 32));
+    let mut world = World::new(Map::new(16, 32));
+
+    world.entities.push(Entity::new(EntityType::Character, Vec2d::new(30.0, 30.0)));
+    world.entities.push(Entity::new(EntityType::Character, Vec2d::new(30.0, 90.0)));
+    world.entities.push(Entity::new(EntityType::Character, Vec2d::new(300.0, 30.0)));
+
+    let mut server = Server::new(sock, world);
     server.register(&mut event_loop).ok().expect("Failed to register server with event loop");
 
     info!("Even loop starting...");

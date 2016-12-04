@@ -14,13 +14,15 @@ mod fonts;
 mod assets;
 mod map;
 mod net;
+mod sprite;
 
-use map::{Map};
+use map::World;
 use login::*;
 use graphics::math::{identity, Matrix2d};
 
 use conrod::backend::piston::{self, Window, WindowEvents, OpenGL};
 use conrod::backend::piston::event::{UpdateEvent};
+use piston_window::{Texture, Flip, G2dTexture, TextureSettings};
 use piston_window::{PressEvent, MouseCursorEvent, MouseButton, clear, ReleaseEvent, Button, Key, G2d, Transformed};
 use world_lib::message::Message;
 
@@ -49,6 +51,7 @@ fn main() {
     let mut logged_in = false;
 
     let tiles = tileset::Tileset::new(&mut window, &assets::tiles(), "grass");
+    let tex = Texture::from_path(&mut window.context.factory, &assets::image("male.png"), Flip::None, &TextureSettings::new()).unwrap();
 
     let mut x_off = 0.0;
     let mut y_off = 0.0;
@@ -62,7 +65,7 @@ fn main() {
     let mut scale = 1.0;
     let mut cursor = (0.0, 0.0);
     
-    let mut curmap: Option<Map> = None;
+    let mut world: Option<World> = None;
     let mut conn = net::Connection::connect("127.0.0.1:15340");
 
     fn build_transform(initial: Matrix2d, (x_off, y_off): (f64, f64), scale: f64) -> Matrix2d {
@@ -123,16 +126,15 @@ fn main() {
             }
 
             if button == Button::Mouse(MouseButton::Left) {
-
-                match curmap {
-                    Some(ref mut map) => {
-                        let (x, y) = map::get_elem(map, cursor, build_inverse(identity(), (x_off, y_off), scale));
+                match world {
+                    Some(ref mut world) => {
+                        let (x, y) = map::get_elem(&world.map, cursor, build_inverse(identity(), (x_off, y_off), scale));
                         println!("{} {}", x, y);
-                        if x < map.width && y < map.height {
-                            let idx = map.idx(x,y);
-                            map.layers[0][idx].y = 1;
+                        if x < world.map.width && y < world.map.height {
+                            let idx = world.map.idx(x,y);
+                            world.map.layers[0][idx].y = 1;
                         }
-                        conn.send(&Message::Map(map.as_json()));
+                        conn.send(&Message::Map(world.map.as_json()));
                     },
                     _ => {}
                 }
@@ -183,9 +185,9 @@ fn main() {
                     &Message::Say(ref text) => {
                         println!("{}", text);
                     },
-                    &Message::Map(ref data) => {
-                        println!("Loading map from MapData");
-                        curmap = Some(Map::from_json(data));
+                    &Message::World(ref data) => {
+                        println!("Loading world from WorldData");
+                        world = Some(World::from_json(data));
                     },
                     _ => {}
                 }
@@ -199,9 +201,13 @@ fn main() {
 
             clear([0.0,0.0,0.0,0.0], g);
 
-            match curmap {
-                Some(ref map) => {
-                    map::draw(map, &tiles, build_transform(c.transform, (x_off, y_off), scale), g);
+            match world {
+                Some(ref world) => {
+                    let view_transform = build_transform(c.transform, (x_off, y_off), scale);
+                    map::draw(&world.map, &tiles, view_transform, g);
+                    for entity in &world.entities {
+                        sprite::draw(entity, &tex, view_transform, g)
+                    }
                 },
                 None => { /* No map to draw */ }
             }

@@ -3,14 +3,15 @@ use std::io;
 use std::result::Result;
 use std::str::from_utf8;
 use utils::to_io;
+use world::World;
 
 #[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub enum Message {
 	Login(String, String),
 	Say(String),
-	Move(f64, f64),
 	Kill(String),
-	Map(String)
+	Map(String),
+	World(String)
 }
 
 impl Message {

@@ -1,6 +1,6 @@
 use rustc_serialize::json;
 
-#[derive(RustcEncodable, RustcDecodable, Clone, Copy)]
+#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy)]
 pub struct Tile {
 	pub x: usize,
 	pub y: usize
@@ -8,7 +8,7 @@ pub struct Tile {
 
 pub type Layer = Vec<Tile>;
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+#[derive(RustcEncodable, RustcDecodable, Clone, Debug)]
 pub struct Map {
 	pub layers: Vec<Layer>,
 	pub width: usize,

@@ -1,7 +1,7 @@
 extern crate rustc_serialize;
 
 mod world;
-mod entity;
+pub mod entity;
 pub mod utils;
 pub mod math;
 pub mod message;

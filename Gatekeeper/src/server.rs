@@ -3,7 +3,7 @@ use connection::Connection;
 use std::io;
 use std::io::{Error, ErrorKind};
 
-use world_lib::Map;
+use world_lib::{Map, World};
 use world_lib::message::{next, Message};
 
 use mio::*;
@@ -14,7 +14,7 @@ pub struct Server {
     sock: TcpListener,
     token: Token,
     conns: Slab<Connection>,
-    map: Map
+    world: World
 }
 
 impl Handler for Server {
@@ -70,12 +70,12 @@ impl Handler for Server {
 
 impl Server {
 
-    pub fn new(sock: TcpListener, map: Map) -> Server {
+    pub fn new(sock: TcpListener, world: World) -> Server {
         Server {
             sock: sock,
             token: Token(1),
             conns: Slab::new_starting_at(Token(2), 2048),
-            map: map
+            world: world
         }
     }
 
@@ -272,8 +272,8 @@ impl Server {
         match message {
             Message::Login(username, _) => {
                 self.find_connection_by_token(token).user.set_name(&username);
-                let map_json = self.map.as_json();
-                self.send_message(token, &Message::Map(map_json));
+                let world_json = self.world.as_json();
+                self.send_message(token, &Message::World(world_json));
                 self.say_all(&format!("{} has joined the server", username), event_loop)
             },
             _ => { self.kill(token, "Bad login") }
@@ -287,8 +287,8 @@ impl Server {
                 self.say_all(&msg, event_loop)
             },
             Message::Map(mapdata) => {
-                self.map = Map::from_json(&mapdata);
-                let new_json = self.map.as_json();
+                self.world.map = Map::from_json(&mapdata);
+                let new_json = self.world.map.as_json();
                 self.broadcast_message(&Message::Map(new_json), event_loop)
             },
             _ => Err(Error::new(ErrorKind::Other, "Unhandled Message"))
